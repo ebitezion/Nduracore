@@ -54,7 +54,7 @@ func main() {
 	}
 	defer db.Close()
 
-	logger := log.New(os.Stdout, "[Vein Framework] ", log.Ldate|log.Ltime|log.Lshortfile)
+	logger := log.New(os.Stdout, "[Nduracore] ", log.Ldate|log.Ltime|log.Lshortfile)
 
 	app, err := newApplication(cfg, logger, data.NewModels(db))
 	if err != nil {

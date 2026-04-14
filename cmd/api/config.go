@@ -54,7 +54,7 @@ type config struct {
 func loadConfig() (config, error) {
 	cfg := config{}
 
-	cfg.appName = getEnv("APP_NAME", "vein")
+	cfg.appName = getEnv("APP_NAME", "nduracore")
 	cfg.version = getEnv("APP_VERSION", "1.0.0")
 	cfg.env = getEnv("MY_ENV", "development")
 
@@ -64,7 +64,11 @@ func loadConfig() (config, error) {
 	}
 	cfg.port = port
 
-	cfg.db.dsn = strings.TrimSpace(getSecretEnv("DB_DSN", ""))
+	cfg.db.dsn, err = getSecretEnv("DB_DSN", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.db.dsn = strings.TrimSpace(cfg.db.dsn)
 	cfg.db.maxOpenConns = getEnvInt("DB_MAX_OPEN_CONNS", 25)
 	cfg.db.maxIdleConns = getEnvInt("DB_MAX_IDLE_CONNS", 25)
 	cfg.db.maxIdleTime = getEnv("DB_MAX_IDLE_TIME", "15m")
@@ -74,16 +78,22 @@ func loadConfig() (config, error) {
 	cfg.security.rateLimitBurst = getEnvInt("RATE_LIMIT_BURST", 10)
 	cfg.security.authRateLimitRPS = getEnvFloat("AUTH_RATE_LIMIT_RPS", 1)
 	cfg.security.authRateLimitBurst = getEnvInt("AUTH_RATE_LIMIT_BURST", 3)
-	cfg.security.tokenSecret = getSecretEnv("TOKEN_SECRET", "replace-me-in-production")
+	cfg.security.tokenSecret, err = getSecretEnv("TOKEN_SECRET", "replace-me-in-production")
+	if err != nil {
+		return cfg, err
+	}
 	cfg.security.tokenIssuer = getEnv("TOKEN_ISSUER", cfg.appName)
-	cfg.security.tokenAudience = getEnv("TOKEN_AUDIENCE", "vein-clients")
+	cfg.security.tokenAudience = getEnv("TOKEN_AUDIENCE", "nduracore-clients")
 	cfg.security.tokenTTL = getEnvDuration("TOKEN_TTL", 24*time.Hour)
 	cfg.security.trustedProxies = parseTrustedProxies(getEnv("TRUSTED_PROXIES", ""))
 
 	cfg.redis.addr = getEnv("REDIS_ADDR", "")
-	cfg.redis.password = getSecretEnv("REDIS_PASSWORD", "")
+	cfg.redis.password, err = getSecretEnv("REDIS_PASSWORD", "")
+	if err != nil {
+		return cfg, err
+	}
 	cfg.redis.db = getEnvInt("REDIS_DB", 0)
-	cfg.redis.queueKey = getEnv("REDIS_QUEUE_KEY", "vein:jobs")
+	cfg.redis.queueKey = getEnv("REDIS_QUEUE_KEY", "nduracore:jobs")
 	cfg.redis.enabled = cfg.redis.addr != ""
 
 	cfg.tracing.enabled = getEnvBool("OTEL_ENABLED", false)
@@ -242,19 +252,69 @@ func parseCSV(raw string) []string {
 	return parsed
 }
 
-func getSecretEnv(key, fallback string) string {
+func getSecretEnv(key, fallback string) (string, error) {
+	direct := strings.TrimSpace(os.Getenv(key))
+	if direct != "" {
+		return direct, nil
+	}
+
 	filePath := strings.TrimSpace(os.Getenv(key + "_FILE"))
 	if filePath != "" {
 		value, err := readSecretFile(filePath)
-		if err == nil {
-			secret := strings.TrimSpace(string(value))
-			if secret != "" {
-				return secret
-			}
+		if err != nil {
+			return "", fmt.Errorf("%s_FILE: %w", key, err)
+		}
+
+		secret := strings.TrimSpace(string(value))
+		if secret != "" {
+			return secret, nil
 		}
 	}
 
-	return getEnv(key, fallback)
+	ref := strings.TrimSpace(os.Getenv(key + "_REF"))
+	if ref != "" {
+		secret, err := resolveSecretReference(ref)
+		if err != nil {
+			return "", fmt.Errorf("%s_REF: %w", key, err)
+		}
+		if strings.TrimSpace(secret) != "" {
+			return strings.TrimSpace(secret), nil
+		}
+	}
+
+	return fallback, nil
+}
+
+func resolveSecretReference(ref string) (string, error) {
+	switch {
+	case strings.HasPrefix(ref, "env:"):
+		targetKey := strings.TrimSpace(strings.TrimPrefix(ref, "env:"))
+		if targetKey == "" {
+			return "", fmt.Errorf("empty env key in reference")
+		}
+		value := strings.TrimSpace(os.Getenv(targetKey))
+		if value == "" {
+			return "", fmt.Errorf("referenced env key %q is empty", targetKey)
+		}
+		return value, nil
+
+	case strings.HasPrefix(ref, "file:"):
+		targetPath := strings.TrimSpace(strings.TrimPrefix(ref, "file:"))
+		if targetPath == "" {
+			return "", fmt.Errorf("empty file path in reference")
+		}
+		value, err := readSecretFile(targetPath)
+		if err != nil {
+			return "", err
+		}
+		secret := strings.TrimSpace(string(value))
+		if secret == "" {
+			return "", fmt.Errorf("referenced secret file is empty")
+		}
+		return secret, nil
+	}
+
+	return "", fmt.Errorf("unsupported reference scheme, expected env: or file:")
 }
 
 func parseTrustedProxies(raw string) []*net.IPNet {

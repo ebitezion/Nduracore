@@ -1,7 +1,7 @@
 include .env
 export
 
-APP_NAME=vein
+APP_NAME=nduracore
 CMD_PATH=./cmd/api
 
 
