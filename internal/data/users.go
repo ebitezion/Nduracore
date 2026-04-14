@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ebitezion/Nduracore/internal/validator"
+	"github.com/lib/pq"
 )
 
 // Define a MovieModel struct type which wraps a sql.DB connection pool.
@@ -82,6 +83,48 @@ func (u UserModel) Insert(user User) error {
 	}
 
 	return u.DB.QueryRowContext(ctx, stmt, args...).Scan(&user.ID, &user.CreatedAt)
+}
+
+func (u UserModel) InsertAndReturn(user User) (*User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `INSERT INTO users(first_name, last_name, email, phone, password_hash, role, status, email_verified)
+			 VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+			 RETURNING id, first_name, last_name, email, phone, role, status, email_verified, created_at, updated_at`
+	args := []interface{}{
+		user.FirstName,
+		user.LastName,
+		user.Email,
+		user.Phone,
+		user.PasswordHash,
+		user.Role,
+		user.Status,
+		user.EmailVerified,
+	}
+
+	var created User
+	err := u.DB.QueryRowContext(ctx, stmt, args...).Scan(
+		&created.ID,
+		&created.FirstName,
+		&created.LastName,
+		&created.Email,
+		&created.Phone,
+		&created.Role,
+		&created.Status,
+		&created.EmailVerified,
+		&created.CreatedAt,
+		&created.UpdatedAt,
+	)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return nil, ErrDuplicateRecord
+		}
+		return nil, err
+	}
+
+	return &created, nil
 }
 
 func (u UserModel) Get(id int64) (*User, error) {

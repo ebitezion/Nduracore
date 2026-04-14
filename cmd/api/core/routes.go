@@ -22,6 +22,7 @@ func (app *application) routes() http.Handler {
 	routes.HandlerFunc(http.MethodGet, "/metrics", app.metricsHandler)
 
 	routes.HandlerFunc(http.MethodPost, "/v1/auth/token", app.issueToken)
+	routes.Handler(http.MethodPost, "/v1/users", app.authenticate(app.requireRoles("admin")(http.HandlerFunc(app.createUser))))
 	routes.Handler(http.MethodGet, "/v1/users", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.listUsers))))
 	routes.Handler(http.MethodPost, "/v1/jobs/audit", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.enqueueAuditJob))))
 	routes.Handler(http.MethodPost, "/v1/wallets", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.createWallet))))

@@ -7,7 +7,8 @@ import (
 
 // Define a custom ErrRecordNotFound error.
 var (
-	ErrRecordNotFound = errors.New("record not found")
+	ErrRecordNotFound  = errors.New("record not found")
+	ErrDuplicateRecord = errors.New("duplicate record")
 )
 
 // Create a Models struct which wraps the UserModel and others
