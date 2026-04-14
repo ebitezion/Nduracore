@@ -1,4 +1,4 @@
-package main
+package platform
 
 import (
 	"context"
@@ -7,29 +7,29 @@ import (
 
 type Hook func(context.Context) error
 
-type lifecycle struct {
+type Lifecycle struct {
 	mu         sync.RWMutex
 	onStart    []Hook
 	onShutdown []Hook
 }
 
-func newLifecycle() *lifecycle {
-	return &lifecycle{}
+func NewLifecycle() *Lifecycle {
+	return &Lifecycle{}
 }
 
-func (lc *lifecycle) RegisterOnStart(hook Hook) {
+func (lc *Lifecycle) RegisterOnStart(hook Hook) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	lc.onStart = append(lc.onStart, hook)
 }
 
-func (lc *lifecycle) RegisterOnShutdown(hook Hook) {
+func (lc *Lifecycle) RegisterOnShutdown(hook Hook) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	lc.onShutdown = append(lc.onShutdown, hook)
 }
 
-func (lc *lifecycle) Start(ctx context.Context) error {
+func (lc *Lifecycle) Start(ctx context.Context) error {
 	lc.mu.RLock()
 	hooks := append([]Hook{}, lc.onStart...)
 	lc.mu.RUnlock()
@@ -43,7 +43,7 @@ func (lc *lifecycle) Start(ctx context.Context) error {
 	return nil
 }
 
-func (lc *lifecycle) Shutdown(ctx context.Context) error {
+func (lc *Lifecycle) Shutdown(ctx context.Context) error {
 	lc.mu.RLock()
 	hooks := append([]Hook{}, lc.onShutdown...)
 	lc.mu.RUnlock()

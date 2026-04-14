@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	httpapi "github.com/ebitezion/Nduracore/cmd/api/core/http"
 )
 
 type contextKey string
@@ -65,14 +67,14 @@ func (app *application) requestID(next http.Handler) http.Handler {
 func (app *application) requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startedAt := time.Now()
-		wrapped := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		wrapped := &httpapi.StatusResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}
 		next.ServeHTTP(wrapped, r)
 
 		payload := map[string]interface{}{
 			"ts":          time.Now().UTC().Format(time.RFC3339),
 			"method":      r.Method,
 			"path":        r.URL.Path,
-			"status_code": wrapped.statusCode,
+			"status_code": wrapped.StatusCode,
 			"duration_ms": time.Since(startedAt).Milliseconds(),
 			"request_id":  app.requestIDFromContext(r.Context()),
 		}
@@ -186,16 +188,6 @@ func generateID(size int) string {
 		return time.Now().UTC().Format("20060102150405")
 	}
 	return hex.EncodeToString(buffer)
-}
-
-type statusResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (srw *statusResponseWriter) WriteHeader(code int) {
-	srw.statusCode = code
-	srw.ResponseWriter.WriteHeader(code)
 }
 
 func (app *application) requestIDFromContext(ctx context.Context) string {

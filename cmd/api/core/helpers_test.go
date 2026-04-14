@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"bytes"
@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ebitezion/Nduracore/cmd/api/core/platform"
+	"github.com/ebitezion/Nduracore/cmd/api/core/security"
 )
 
 // helper to build a minimal application instance for handler/helper tests.
@@ -26,9 +29,14 @@ func newTestApp() *application {
 	app.idemStore = newMemoryIdempotencyStore()
 	app.cache = newMemoryCache()
 	app.queue = newMemoryQueue(10)
-	app.lifecycle = newLifecycle()
+	app.lifecycle = platform.NewLifecycle()
 	app.plugins = newPluginRegistry()
 	app.events = newEventBus()
+	app.security = security.Service{
+		TokenSecret:   app.config.security.tokenSecret,
+		TokenIssuer:   app.config.security.tokenIssuer,
+		TokenAudience: app.config.security.tokenAudience,
+	}
 	app.tracer = nil
 	return app
 }

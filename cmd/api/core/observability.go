@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	httpapi "github.com/ebitezion/Nduracore/cmd/api/core/http"
 )
 
 type metricsStore struct {
@@ -68,9 +70,9 @@ func (m *metricsStore) snapshot() envelope {
 func (app *application) metricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
-		wrapped := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		wrapped := &httpapi.StatusResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}
 		next.ServeHTTP(wrapped, r)
-		app.metrics.record(r.URL.Path, wrapped.statusCode, time.Since(started))
+		app.metrics.record(r.URL.Path, wrapped.StatusCode, time.Since(started))
 	})
 }
 
