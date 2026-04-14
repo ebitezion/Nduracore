@@ -3,8 +3,11 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ebitezion/Nduracore/internal/data"
@@ -342,42 +345,163 @@ func (app *application) ingestAlchemyDepositWebhook(w http.ResponseWriter, r *ht
 		return
 	}
 
-	var payload struct {
+	parsed, err := decodeAlchemyWebhookDeposits(body)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	recorded := make([]data.WalletDeposit, 0, len(parsed))
+	for _, dep := range parsed {
+		deposit, err := app.walletService.RecordDeposit(r.Context(), wallet.RecordDepositInput{
+			TenantID:      tenantID,
+			WalletID:      walletID,
+			TxHash:        dep.TxHash,
+			AmountMinor:   dep.AmountMinor,
+			Confirmations: dep.Confirmations,
+			Status:        dep.Status,
+		})
+		if err != nil {
+			if errors.Is(err, data.ErrRecordNotFound) {
+				app.notFoundErrorResponse(w, r)
+				return
+			}
+			app.badRequestResponse(w, r, err)
+			return
+		}
+		recorded = append(recorded, deposit)
+	}
+
+	app.logAuditEvent(r, "wallet.deposit.webhook", "accepted", map[string]interface{}{
+		"tenant_id":       tenantID,
+		"wallet_id":       walletID,
+		"deposit_count":   len(recorded),
+		"primary_tx_hash": recorded[0].TxHash,
+	})
+
+	_ = app.writeJSON(w, http.StatusAccepted, envelope{"deposits": recorded}, nil)
+}
+
+type parsedWebhookDeposit struct {
+	TxHash        string
+	AmountMinor   int64
+	Confirmations int
+	Status        string
+}
+
+func decodeAlchemyWebhookDeposits(body []byte) ([]parsedWebhookDeposit, error) {
+	var simple struct {
 		TxHash        string `json:"tx_hash"`
 		AmountMinor   int64  `json:"amount_minor"`
 		Confirmations int    `json:"confirmations"`
 		Status        string `json:"status"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		app.badRequestResponse(w, r, err)
-		return
+	if err := json.Unmarshal(body, &simple); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(simple.TxHash) != "" && simple.AmountMinor > 0 {
+		return []parsedWebhookDeposit{{
+			TxHash:        strings.ToLower(strings.TrimSpace(simple.TxHash)),
+			AmountMinor:   simple.AmountMinor,
+			Confirmations: maxInt(simple.Confirmations, 0),
+			Status:        defaultDepositStatus(simple.Status, simple.Confirmations),
+		}}, nil
 	}
 
-	deposit, err := app.walletService.RecordDeposit(r.Context(), wallet.RecordDepositInput{
-		TenantID:      tenantID,
-		WalletID:      walletID,
-		TxHash:        payload.TxHash,
-		AmountMinor:   payload.AmountMinor,
-		Confirmations: payload.Confirmations,
-		Status:        payload.Status,
-	})
-	if err != nil {
-		if errors.Is(err, data.ErrRecordNotFound) {
-			app.notFoundErrorResponse(w, r)
-			return
+	var alchemy struct {
+		Event struct {
+			Activity []struct {
+				Hash             string `json:"hash"`
+				Value            any    `json:"value"`
+				NumConfirmations int    `json:"numConfirmations"`
+				Confirmations    int    `json:"confirmations"`
+				Status           string `json:"status"`
+				RawContract      struct {
+					Value string `json:"value"`
+				} `json:"rawContract"`
+			} `json:"activity"`
+		} `json:"event"`
+	}
+	if err := json.Unmarshal(body, &alchemy); err != nil {
+		return nil, err
+	}
+
+	deposits := make([]parsedWebhookDeposit, 0, len(alchemy.Event.Activity))
+	for _, activity := range alchemy.Event.Activity {
+		txHash := strings.ToLower(strings.TrimSpace(activity.Hash))
+		if txHash == "" {
+			continue
 		}
-		app.badRequestResponse(w, r, err)
-		return
+
+		amountMinor := parseWebhookAmountMinor(activity.Value, activity.RawContract.Value)
+		if amountMinor <= 0 {
+			continue
+		}
+
+		confirmations := activity.NumConfirmations
+		if confirmations == 0 {
+			confirmations = activity.Confirmations
+		}
+		if confirmations < 0 {
+			confirmations = 0
+		}
+
+		deposits = append(deposits, parsedWebhookDeposit{
+			TxHash:        txHash,
+			AmountMinor:   amountMinor,
+			Confirmations: confirmations,
+			Status:        defaultDepositStatus(activity.Status, confirmations),
+		})
 	}
 
-	app.logAuditEvent(r, "wallet.deposit.webhook", "accepted", map[string]interface{}{
-		"tenant_id":     tenantID,
-		"wallet_id":     walletID,
-		"tx_hash":       deposit.TxHash,
-		"amount_minor":  deposit.AmountMinor,
-		"confirmations": deposit.Confirmations,
-		"status":        deposit.Status,
-	})
+	if len(deposits) == 0 {
+		return nil, fmt.Errorf("no deposit activity found in webhook payload")
+	}
+	return deposits, nil
+}
 
-	_ = app.writeJSON(w, http.StatusAccepted, envelope{"deposit": deposit}, nil)
+func parseWebhookAmountMinor(value any, rawHexValue string) int64 {
+	if strings.TrimSpace(rawHexValue) != "" {
+		hexValue := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(rawHexValue)), "0x")
+		if hexValue != "" {
+			parsed, err := strconv.ParseInt(hexValue, 16, 64)
+			if err == nil && parsed > 0 {
+				return parsed
+			}
+		}
+	}
+
+	switch v := value.(type) {
+	case float64:
+		if v <= 0 {
+			return 0
+		}
+		return int64(math.Round(v * 1_000_000))
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil || parsed <= 0 {
+			return 0
+		}
+		return int64(math.Round(parsed * 1_000_000))
+	default:
+		return 0
+	}
+}
+
+func defaultDepositStatus(raw string, confirmations int) string {
+	status := strings.ToLower(strings.TrimSpace(raw))
+	if status != "" {
+		return status
+	}
+	if confirmations > 0 {
+		return "confirmed"
+	}
+	return "pending"
+}
+
+func maxInt(value, floor int) int {
+	if value < floor {
+		return floor
+	}
+	return value
 }
