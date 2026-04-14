@@ -152,6 +152,9 @@ Deliverables:
 - Alchemy RPC and webhook secrets are provisioned in environment config.
 - Security roles for operator/approver/admin are available.
 
+## Integration Reference
+- `documentation/runbooks/alchemy-webhook-integration.md`
+
 ## Risks and Mitigations
 1. Provider API instability
 - Mitigation: retries, circuit breaker, and fallback job replay queue.
