@@ -56,7 +56,7 @@ func (m *mockWalletService) RejectWithdrawal(ctx context.Context, input wallet.R
 	return data.Withdrawal{}, nil
 }
 
-func TestDecodeAlchemyWebhookDepositsFromActivityPayload(t *testing.T) {
+func TestParseWebhookDepositsFromActivityPayload(t *testing.T) {
 	payload := []byte(`{
 		"event": {
 			"activity": [
@@ -70,7 +70,8 @@ func TestDecodeAlchemyWebhookDepositsFromActivityPayload(t *testing.T) {
 		}
 	}`)
 
-	deposits, err := decodeAlchemyWebhookDeposits(payload)
+	provider := alchemy.NewProvider(alchemy.Config{})
+	deposits, err := provider.ParseWebhookDeposits(payload)
 	if err != nil {
 		t.Fatalf("decode failed: %v", err)
 	}

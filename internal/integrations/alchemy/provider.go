@@ -133,6 +133,77 @@ func (p *Provider) VerifyWebhookSignature(body []byte, signature string) bool {
 	return hmac.Equal([]byte(expected), []byte(provided))
 }
 
+func (p *Provider) ParseWebhookDeposits(body []byte) ([]integrations.DetectedDeposit, error) {
+	var simple struct {
+		TxHash        string `json:"tx_hash"`
+		AmountMinor   int64  `json:"amount_minor"`
+		Confirmations int    `json:"confirmations"`
+		Status        string `json:"status"`
+	}
+	if err := json.Unmarshal(body, &simple); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(simple.TxHash) != "" && simple.AmountMinor > 0 {
+		return []integrations.DetectedDeposit{{
+			TxHash:        strings.ToLower(strings.TrimSpace(simple.TxHash)),
+			AmountMinor:   simple.AmountMinor,
+			Confirmations: clampInt(simple.Confirmations, 0),
+			Status:        deriveDepositStatus(simple.Status, simple.Confirmations),
+		}}, nil
+	}
+
+	var payload struct {
+		Event struct {
+			Activity []struct {
+				Hash             string `json:"hash"`
+				Value            any    `json:"value"`
+				NumConfirmations int    `json:"numConfirmations"`
+				Confirmations    int    `json:"confirmations"`
+				Status           string `json:"status"`
+				RawContract      struct {
+					Value string `json:"value"`
+				} `json:"rawContract"`
+			} `json:"activity"`
+		} `json:"event"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+
+	deposits := make([]integrations.DetectedDeposit, 0, len(payload.Event.Activity))
+	for _, activity := range payload.Event.Activity {
+		txHash := strings.ToLower(strings.TrimSpace(activity.Hash))
+		if txHash == "" {
+			continue
+		}
+
+		amountMinor := parseAmountMinor(activity.Value, activity.RawContract.Value)
+		if amountMinor <= 0 {
+			continue
+		}
+
+		confirmations := activity.NumConfirmations
+		if confirmations == 0 {
+			confirmations = activity.Confirmations
+		}
+		if confirmations < 0 {
+			confirmations = 0
+		}
+
+		deposits = append(deposits, integrations.DetectedDeposit{
+			TxHash:        txHash,
+			AmountMinor:   amountMinor,
+			Confirmations: confirmations,
+			Status:        deriveDepositStatus(activity.Status, confirmations),
+		})
+	}
+
+	if len(deposits) == 0 {
+		return nil, fmt.Errorf("no deposit activity found in webhook payload")
+	}
+	return deposits, nil
+}
+
 func (p *Provider) listDepositsLive(ctx context.Context, toAddress string) ([]integrations.DetectedDeposit, error) {
 	latestBlock, err := p.ethBlockNumber(ctx)
 	if err != nil {
@@ -319,4 +390,22 @@ func parseAmountMinor(value any, rawHexValue string) int64 {
 	default:
 		return 0
 	}
+}
+
+func deriveDepositStatus(raw string, confirmations int) string {
+	status := strings.ToLower(strings.TrimSpace(raw))
+	if status != "" {
+		return status
+	}
+	if confirmations > 0 {
+		return "confirmed"
+	}
+	return "pending"
+}
+
+func clampInt(value, floor int) int {
+	if value < floor {
+		return floor
+	}
+	return value
 }
