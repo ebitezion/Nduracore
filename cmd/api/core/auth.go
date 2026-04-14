@@ -4,24 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
-
-	"github.com/ebitezion/Nduracore/cmd/api/core/security"
 )
-
-type AuthClaims = security.Claims
-
-func (app *application) generateToken(subject, role string, ttl time.Duration) (string, error) {
-	return app.security.GenerateToken(subject, role, ttl)
-}
-
-func (app *application) parseToken(tokenString string) (AuthClaims, error) {
-	return app.security.ParseToken(tokenString)
-}
-
-func verifyPasswordHash(plainPassword, passwordHash string) bool {
-	return security.VerifyPasswordHash(plainPassword, passwordHash)
-}
 
 func (app *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +20,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		claims, err := app.parseToken(parts[1])
+		claims, err := app.security.ParseToken(parts[1])
 		if err != nil {
 			app.unauthorizedResponse(w, r)
 			return

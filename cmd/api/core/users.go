@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ebitezion/Nduracore/cmd/api/core/security"
 	"github.com/ebitezion/Nduracore/internal/data"
 	"github.com/ebitezion/Nduracore/internal/validator"
 )
@@ -31,7 +32,7 @@ func (app *application) issueToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := app.model.Users.GetByEmail(strings.ToLower(input.Email))
-	if err != nil || !verifyPasswordHash(input.Password, user.PasswordHash) {
+	if err != nil || !security.VerifyPasswordHash(input.Password, user.PasswordHash) {
 		app.logAuditEvent(r, "auth.token.issue", "failed", map[string]interface{}{"reason": "invalid_credentials", "email": strings.ToLower(input.Email)})
 		app.unauthorizedResponse(w, r)
 		return
@@ -43,7 +44,7 @@ func (app *application) issueToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := app.generateToken(user.ID, user.Role, app.config.security.tokenTTL)
+	token, err := app.security.GenerateToken(user.ID, user.Role, app.config.security.tokenTTL)
 	if err != nil {
 		app.logAuditEvent(r, "auth.token.issue", "failed", map[string]interface{}{"reason": "token_generation_error", "user_id": user.ID, "role": user.Role})
 		app.serverErrorResponse(w, r)

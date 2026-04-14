@@ -11,13 +11,13 @@ func TestGenerateAndParseToken(t *testing.T) {
 	app := newTestApp()
 	app.config.security.tokenSecret = "test-secret"
 
-	token, err := app.generateToken("user-1", "admin", 1*time.Hour)
+	token, err := app.security.GenerateToken("user-1", "admin", 1*time.Hour)
 	if err != nil {
-		t.Fatalf("generateToken returned error: %v", err)
+		t.Fatalf("GenerateToken returned error: %v", err)
 	}
-	claims, err := app.parseToken(token)
+	claims, err := app.security.ParseToken(token)
 	if err != nil {
-		t.Fatalf("parseToken returned error: %v", err)
+		t.Fatalf("ParseToken returned error: %v", err)
 	}
 
 	if claims.Role != "admin" {
@@ -29,9 +29,9 @@ func TestAuthenticateMiddleware(t *testing.T) {
 	app := newTestApp()
 	app.config.security.tokenSecret = "test-secret"
 
-	token, err := app.generateToken("user-1", "manager", time.Hour)
+	token, err := app.security.GenerateToken("user-1", "manager", time.Hour)
 	if err != nil {
-		t.Fatalf("generateToken returned error: %v", err)
+		t.Fatalf("GenerateToken returned error: %v", err)
 	}
 	handler := app.authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
