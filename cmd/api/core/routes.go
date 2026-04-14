@@ -24,6 +24,14 @@ func (app *application) routes() http.Handler {
 	routes.HandlerFunc(http.MethodPost, "/v1/auth/token", app.issueToken)
 	routes.Handler(http.MethodGet, "/v1/users", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.listUsers))))
 	routes.Handler(http.MethodPost, "/v1/jobs/audit", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.enqueueAuditJob))))
+	routes.Handler(http.MethodPost, "/v1/wallets", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.createWallet))))
+	routes.Handler(http.MethodGet, "/v1/wallets", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.listWallets))))
+	routes.Handler(http.MethodGet, "/v1/wallets/:id", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.getWallet))))
+	routes.Handler(http.MethodGet, "/v1/wallets/:id/deposits", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.listWalletDeposits))))
+	routes.Handler(http.MethodPost, "/v1/withdrawals", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.createWithdrawal))))
+	routes.Handler(http.MethodGet, "/v1/withdrawals/:id", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.getWithdrawal))))
+	routes.Handler(http.MethodPost, "/v1/withdrawals/:id/approve", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.approveWithdrawal))))
+	routes.Handler(http.MethodPost, "/v1/withdrawals/:id/reject", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.rejectWithdrawal))))
 
 	return app.chain(routes)
 }

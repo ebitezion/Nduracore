@@ -49,6 +49,9 @@ type config struct {
 		otlpEndpoint string
 		sampleRatio  float64
 	}
+	alchemy struct {
+		network string
+	}
 }
 
 func loadConfig() (config, error) {
@@ -99,6 +102,7 @@ func loadConfig() (config, error) {
 	cfg.tracing.enabled = getEnvBool("OTEL_ENABLED", false)
 	cfg.tracing.otlpEndpoint = getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	cfg.tracing.sampleRatio = getEnvFloat("OTEL_SAMPLE_RATIO", 1.0)
+	cfg.alchemy.network = getEnv("ALCHEMY_NETWORK", "eth-sepolia")
 
 	if err := validateConfig(cfg); err != nil {
 		return cfg, err

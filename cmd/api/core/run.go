@@ -15,6 +15,8 @@ import (
 	"github.com/ebitezion/Nduracore/cmd/api/core/platform"
 	"github.com/ebitezion/Nduracore/cmd/api/core/security"
 	"github.com/ebitezion/Nduracore/internal/data"
+	"github.com/ebitezion/Nduracore/internal/integrations/alchemy"
+	"github.com/ebitezion/Nduracore/internal/wallet"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"go.opentelemetry.io/otel/trace"
@@ -35,6 +37,7 @@ type application struct {
 	plugins       *pluginRegistry
 	events        *eventBus
 	security      security.Service
+	walletService wallet.Service
 	tracer        trace.Tracer
 	infraCleanup  func(context.Context) error
 	traceShutdown func(context.Context) error
@@ -164,6 +167,7 @@ func newApplication(cfg config, logger *log.Logger, models data.Models) (*applic
 			TokenIssuer:   cfg.security.tokenIssuer,
 			TokenAudience: cfg.security.tokenAudience,
 		},
+		walletService: wallet.NewService(models, alchemy.NewProvider(cfg.alchemy.network)),
 		tracer:        tracer,
 		infraCleanup:  infra.cleanup,
 		traceShutdown: traceShutdown,

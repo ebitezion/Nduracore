@@ -17,6 +17,7 @@ type contextKey string
 const (
 	requestIDContextKey contextKey = "request_id"
 	userRoleContextKey  contextKey = "user_role"
+	userIDContextKey    contextKey = "user_id"
 )
 
 func (app *application) chain(next http.Handler) http.Handler {
@@ -196,6 +197,14 @@ func (app *application) requestIDFromContext(ctx context.Context) string {
 		return ""
 	}
 	return requestID
+}
+
+func (app *application) userIDFromContext(ctx context.Context) string {
+	userID, ok := ctx.Value(userIDContextKey).(string)
+	if !ok {
+		return ""
+	}
+	return userID
 }
 
 func (app *application) readClientIP(r *http.Request) string {

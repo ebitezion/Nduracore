@@ -63,6 +63,8 @@ Rooted in “Ndu” (life), Nduracore represents:
 - Wallet creation, deposit detection, and withdrawal flow with policy approvals.
 - Full transaction and action audit trail.
 
+Detailed execution doc: `documentation/phase-2-custodial-wallet-mvp.md`
+
 ### Phase 3: Core Banking Engine (Weeks 13-18)
 - Implement double-entry ledger, holds, pending and posted states, and reversals.
 - Build reconciliation jobs and idempotent transaction handling.
