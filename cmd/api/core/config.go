@@ -50,7 +50,12 @@ type config struct {
 		sampleRatio  float64
 	}
 	alchemy struct {
-		network string
+		network               string
+		apiKey                string
+		rpcURL                string
+		confirmationsRequired int
+		webhookSigningSecret  string
+		enableLiveDeposits    bool
 	}
 }
 
@@ -103,6 +108,17 @@ func loadConfig() (config, error) {
 	cfg.tracing.otlpEndpoint = getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	cfg.tracing.sampleRatio = getEnvFloat("OTEL_SAMPLE_RATIO", 1.0)
 	cfg.alchemy.network = getEnv("ALCHEMY_NETWORK", "eth-sepolia")
+	cfg.alchemy.apiKey, err = getSecretEnv("ALCHEMY_API_KEY", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.alchemy.rpcURL = getEnv("ALCHEMY_RPC_URL", "")
+	cfg.alchemy.confirmationsRequired = getEnvInt("ALCHEMY_CONFIRMATIONS_REQUIRED", 12)
+	cfg.alchemy.webhookSigningSecret, err = getSecretEnv("ALCHEMY_WEBHOOK_SIGNING_SECRET", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.alchemy.enableLiveDeposits = getEnvBool("ALCHEMY_ENABLE_LIVE_DEPOSITS", false)
 
 	if err := validateConfig(cfg); err != nil {
 		return cfg, err
@@ -169,6 +185,9 @@ func validateConfig(cfg config) error {
 	}
 	if cfg.tracing.sampleRatio < 0 || cfg.tracing.sampleRatio > 1 {
 		errs = append(errs, "OTEL_SAMPLE_RATIO must be between 0 and 1")
+	}
+	if cfg.alchemy.confirmationsRequired < 1 {
+		errs = append(errs, "ALCHEMY_CONFIRMATIONS_REQUIRED must be at least 1")
 	}
 
 	if len(errs) > 0 {

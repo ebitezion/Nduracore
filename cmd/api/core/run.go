@@ -38,6 +38,7 @@ type application struct {
 	events        *eventBus
 	security      security.Service
 	walletService wallet.Service
+	alchemy       *alchemy.Provider
 	tracer        trace.Tracer
 	infraCleanup  func(context.Context) error
 	traceShutdown func(context.Context) error
@@ -149,6 +150,15 @@ func newApplication(cfg config, logger *log.Logger, models data.Models) (*applic
 		return nil, err
 	}
 
+	alchemyProvider := alchemy.NewProvider(alchemy.Config{
+		Network:               cfg.alchemy.network,
+		APIKey:                cfg.alchemy.apiKey,
+		RPCURL:                cfg.alchemy.rpcURL,
+		ConfirmationsRequired: cfg.alchemy.confirmationsRequired,
+		WebhookSigningSecret:  cfg.alchemy.webhookSigningSecret,
+		EnableLiveDeposits:    cfg.alchemy.enableLiveDeposits,
+	})
+
 	app := &application{
 		config:      cfg,
 		log:         logger,
@@ -167,7 +177,8 @@ func newApplication(cfg config, logger *log.Logger, models data.Models) (*applic
 			TokenIssuer:   cfg.security.tokenIssuer,
 			TokenAudience: cfg.security.tokenAudience,
 		},
-		walletService: wallet.NewService(models, alchemy.NewProvider(cfg.alchemy.network)),
+		walletService: wallet.NewService(models, alchemyProvider),
+		alchemy:       alchemyProvider,
 		tracer:        tracer,
 		infraCleanup:  infra.cleanup,
 		traceShutdown: traceShutdown,

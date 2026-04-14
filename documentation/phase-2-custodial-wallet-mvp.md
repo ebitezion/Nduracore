@@ -67,6 +67,7 @@ Deliverables:
 Deliverables:
 - Background job/worker for deposits.
 - API endpoint to query deposit status.
+- Webhook ingestion endpoint for provider-pushed deposit events.
 - Audit logs for every observed inbound transfer.
 
 ### Workstream D: Controlled Withdrawals (Minimal Fireblocks Style)
@@ -99,6 +100,7 @@ Deliverables:
 - `GET /v1/wallets/:id`
 - `GET /v1/wallets`
 - `GET /v1/wallets/:id/deposits`
+- `POST /v1/wallets/:id/deposits/webhook`
 - `POST /v1/withdrawals`
 - `GET /v1/withdrawals/:id`
 - `POST /v1/withdrawals/:id/approve`
@@ -147,6 +149,7 @@ Deliverables:
 ## Dependencies
 - Staging environment from Phase 1 is operational.
 - Alchemy project credentials and network scopes are provisioned.
+- Alchemy RPC and webhook secrets are provisioned in environment config.
 - Security roles for operator/approver/admin are available.
 
 ## Risks and Mitigations

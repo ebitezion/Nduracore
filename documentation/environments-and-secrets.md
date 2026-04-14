@@ -29,6 +29,12 @@ Set with `MY_ENV`.
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
 - `OTEL_SAMPLE_RATIO`
 - `TRUSTED_PROXIES`
+- `ALCHEMY_NETWORK`
+- `ALCHEMY_ENABLE_LIVE_DEPOSITS`
+- `ALCHEMY_CONFIRMATIONS_REQUIRED`
+- `ALCHEMY_RPC_URL`
+- `ALCHEMY_API_KEY`
+- `ALCHEMY_WEBHOOK_SIGNING_SECRET`
 
 ## Secret Management Policy
 1. Never commit live secrets to source control.
@@ -40,6 +46,8 @@ Set with `MY_ENV`.
    - `DB_DSN_REF=env:STAGING_DB_DSN`
    - `TOKEN_SECRET_REF=env:STAGING_TOKEN_SECRET`
    - `REDIS_PASSWORD_REF=env:STAGING_REDIS_PASSWORD`
+   - `ALCHEMY_API_KEY_REF=env:STAGING_ALCHEMY_API_KEY`
+   - `ALCHEMY_WEBHOOK_SIGNING_SECRET_REF=env:STAGING_ALCHEMY_WEBHOOK_SECRET`
    - Supported schemes: `env:` and `file:`
 4. In staging and production:
    - Rotate `TOKEN_SECRET` at least quarterly.

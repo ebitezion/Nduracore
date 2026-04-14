@@ -1,7 +1,9 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -312,4 +314,70 @@ func (app *application) tenantIDFromRequest(r *http.Request) string {
 func (app *application) pathParam(r *http.Request, key string) string {
 	params := httprouter.ParamsFromContext(r.Context())
 	return strings.TrimSpace(params.ByName(key))
+}
+
+func (app *application) ingestAlchemyDepositWebhook(w http.ResponseWriter, r *http.Request) {
+	tenantID := app.tenantIDFromRequest(r)
+	if tenantID == "" {
+		app.errorResponse(w, r, http.StatusBadRequest, "X-Tenant-ID header is required")
+		return
+	}
+
+	walletID := app.pathParam(r, "id")
+	if walletID == "" {
+		app.notFoundErrorResponse(w, r)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1_048_576)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	signature := strings.TrimSpace(r.Header.Get("X-Alchemy-Signature"))
+	if app.alchemy != nil && !app.alchemy.VerifyWebhookSignature(body, signature) {
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid webhook signature")
+		return
+	}
+
+	var payload struct {
+		TxHash        string `json:"tx_hash"`
+		AmountMinor   int64  `json:"amount_minor"`
+		Confirmations int    `json:"confirmations"`
+		Status        string `json:"status"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	deposit, err := app.walletService.RecordDeposit(r.Context(), wallet.RecordDepositInput{
+		TenantID:      tenantID,
+		WalletID:      walletID,
+		TxHash:        payload.TxHash,
+		AmountMinor:   payload.AmountMinor,
+		Confirmations: payload.Confirmations,
+		Status:        payload.Status,
+	})
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundErrorResponse(w, r)
+			return
+		}
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	app.logAuditEvent(r, "wallet.deposit.webhook", "accepted", map[string]interface{}{
+		"tenant_id":     tenantID,
+		"wallet_id":     walletID,
+		"tx_hash":       deposit.TxHash,
+		"amount_minor":  deposit.AmountMinor,
+		"confirmations": deposit.Confirmations,
+		"status":        deposit.Status,
+	})
+
+	_ = app.writeJSON(w, http.StatusAccepted, envelope{"deposit": deposit}, nil)
 }

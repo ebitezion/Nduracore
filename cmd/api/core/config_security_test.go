@@ -21,6 +21,7 @@ func validSecurityConfigForTest() config {
 	cfg.security.tokenSecret = "VeryStrongTokenSecret#2026WithLongLength!"
 	cfg.security.tokenTTL = time.Hour
 	cfg.tracing.sampleRatio = 1
+	cfg.alchemy.confirmationsRequired = 12
 	return cfg
 }
 

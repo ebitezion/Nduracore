@@ -28,6 +28,7 @@ func (app *application) routes() http.Handler {
 	routes.Handler(http.MethodGet, "/v1/wallets", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.listWallets))))
 	routes.Handler(http.MethodGet, "/v1/wallets/:id", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.getWallet))))
 	routes.Handler(http.MethodGet, "/v1/wallets/:id/deposits", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.listWalletDeposits))))
+	routes.HandlerFunc(http.MethodPost, "/v1/wallets/:id/deposits/webhook", app.ingestAlchemyDepositWebhook)
 	routes.Handler(http.MethodPost, "/v1/withdrawals", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.createWithdrawal))))
 	routes.Handler(http.MethodGet, "/v1/withdrawals/:id", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.getWithdrawal))))
 	routes.Handler(http.MethodPost, "/v1/withdrawals/:id/approve", app.authenticate(app.requireRoles("admin", "manager")(http.HandlerFunc(app.approveWithdrawal))))

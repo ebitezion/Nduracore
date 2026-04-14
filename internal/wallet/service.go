@@ -12,10 +12,20 @@ type Service interface {
 	ListWallets(ctx context.Context, tenantID string, filters data.Filters) ([]data.Wallet, data.Metadata, error)
 	SyncDepositsForWallet(ctx context.Context, tenantID, walletID string) (int, error)
 	ListDeposits(ctx context.Context, tenantID, walletID string, filters data.Filters) ([]data.WalletDeposit, data.Metadata, error)
+	RecordDeposit(ctx context.Context, input RecordDepositInput) (data.WalletDeposit, error)
 	RequestWithdrawal(ctx context.Context, input RequestWithdrawalInput) (data.Withdrawal, error)
 	GetWithdrawal(ctx context.Context, tenantID, withdrawalID string) (data.Withdrawal, error)
 	ApproveWithdrawal(ctx context.Context, input ApproveWithdrawalInput) (data.Withdrawal, error)
 	RejectWithdrawal(ctx context.Context, input RejectWithdrawalInput) (data.Withdrawal, error)
+}
+
+type RecordDepositInput struct {
+	TenantID      string
+	WalletID      string
+	TxHash        string
+	AmountMinor   int64
+	Confirmations int
+	Status        string
 }
 
 type CreateWalletInput struct {

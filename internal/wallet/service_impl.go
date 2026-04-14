@@ -113,6 +113,45 @@ func (s *service) ListDeposits(ctx context.Context, tenantID, walletID string, f
 	return s.models.Wallets.ListDeposits(ctx, strings.TrimSpace(tenantID), strings.TrimSpace(walletID), filters)
 }
 
+func (s *service) RecordDeposit(ctx context.Context, input RecordDepositInput) (data.WalletDeposit, error) {
+	input.TenantID = strings.TrimSpace(input.TenantID)
+	input.WalletID = strings.TrimSpace(input.WalletID)
+	input.TxHash = strings.ToLower(strings.TrimSpace(input.TxHash))
+	input.Status = strings.ToLower(strings.TrimSpace(input.Status))
+	if input.Status == "" {
+		input.Status = "pending"
+	}
+	if input.Confirmations < 0 {
+		input.Confirmations = 0
+	}
+	if input.TenantID == "" || input.WalletID == "" || input.TxHash == "" {
+		return data.WalletDeposit{}, fmt.Errorf("tenant_id, wallet_id and tx_hash are required")
+	}
+	if input.AmountMinor <= 0 {
+		return data.WalletDeposit{}, fmt.Errorf("amount_minor must be greater than 0")
+	}
+
+	walletRecord, err := s.models.Wallets.GetWallet(ctx, input.TenantID, input.WalletID)
+	if err != nil {
+		return data.WalletDeposit{}, err
+	}
+
+	deposit := data.WalletDeposit{
+		WalletID:      walletRecord.ID,
+		TenantID:      walletRecord.TenantID,
+		Asset:         walletRecord.Asset,
+		Network:       walletRecord.Network,
+		TxHash:        input.TxHash,
+		AmountMinor:   input.AmountMinor,
+		Confirmations: input.Confirmations,
+		Status:        input.Status,
+	}
+	if err := s.models.Wallets.UpsertDeposit(ctx, &deposit); err != nil {
+		return data.WalletDeposit{}, err
+	}
+	return deposit, nil
+}
+
 func (s *service) RequestWithdrawal(ctx context.Context, input RequestWithdrawalInput) (data.Withdrawal, error) {
 	input.TenantID = strings.TrimSpace(input.TenantID)
 	input.WalletID = strings.TrimSpace(input.WalletID)
