@@ -105,3 +105,16 @@ curl -X POST "http://localhost:4000/v1/wallets/<wallet-id>/deposits/webhook" \
   -H "X-Alchemy-Signature: $signature" \
   -d "$body"
 ```
+
+## Postman Assets
+- Collection: `documentation/postman/Nduracore-Phase2.postman_collection.json`
+- Environment: `documentation/postman/Nduracore-Phase2.postman_environment.json`
+
+Recommended execution order in Postman:
+1. `Auth - Issue Token`
+2. `Wallet - Create`
+3. `Deposits - Webhook (Simple Payload)`
+4. `Deposits - List`
+5. `Withdrawals - Request`
+6. `Withdrawals - Get`
+7. `Withdrawals - Approve` or `Withdrawals - Reject`
