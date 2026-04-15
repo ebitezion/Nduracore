@@ -41,6 +41,10 @@ func (app *application) requireRoles(roles ...string) func(http.Handler) http.Ha
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role, _ := r.Context().Value(userRoleContextKey).(string)
+			if role == "super_admin" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			if _, ok := allowed[role]; !ok {
 				app.forbiddenResponse(w, r)
 				return
@@ -48,4 +52,38 @@ func (app *application) requireRoles(roles ...string) func(http.Handler) http.Ha
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (app *application) requireTenantAccess(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role, _ := r.Context().Value(userRoleContextKey).(string)
+		if role == "super_admin" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		tenantID := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+		if tenantID == "" {
+			app.errorResponse(w, r, http.StatusBadRequest, "X-Tenant-ID header is required")
+			return
+		}
+
+		userID, _ := r.Context().Value(userIDContextKey).(string)
+		if strings.TrimSpace(userID) == "" {
+			app.unauthorizedResponse(w, r)
+			return
+		}
+
+		allowed, err := app.model.Users.HasTenantAccess(r.Context(), userID, tenantID)
+		if err != nil {
+			app.serverErrorResponse(w, r)
+			return
+		}
+		if !allowed {
+			app.forbiddenResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

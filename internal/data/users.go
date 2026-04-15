@@ -29,6 +29,16 @@ type User struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type UserTenant struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TenantID  string    `json:"tenant_id"`
+	Role      string    `json:"role"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 const dbTimeout = 3 * time.Second
 
 func ValidateUsers(v *validator.Validator, user *User) {
@@ -56,11 +66,11 @@ func ValidateUsers(v *validator.Validator, user *User) {
 
 	// Role validation
 	v.Check(user.Role != "", "role", "must be provided")
-	v.Check(validator.In(user.Role, "user", "admin", "manager"), "role", "must be a valid role")
+	v.Check(validator.In(user.Role, "user", "admin", "manager", "super_admin"), "role", "must be a valid role")
 
 	// Status validation
 	v.Check(user.Status != "", "status", "must be provided")
-	v.Check(validator.In(user.Status, "active", "disabled", "suspended"), "status", "must be a valid status")
+	v.Check(validator.In(user.Status, "pending", "active", "disabled", "suspended", "rejected"), "status", "must be a valid status")
 }
 
 func (u UserModel) Insert(user User) error {
@@ -220,6 +230,45 @@ func (u UserModel) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+func (u UserModel) GetByID(id string) (*User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, ErrRecordNotFound
+	}
+
+	stmt := `SELECT id, first_name, last_name, email, phone, password_hash, role, status, email_verified, created_at, updated_at
+		FROM users
+		WHERE id = $1`
+
+	var user User
+	err := u.DB.QueryRowContext(ctx, stmt, id).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.Phone,
+		&user.PasswordHash,
+		&user.Role,
+		&user.Status,
+		&user.EmailVerified,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
 func (u UserModel) List(filters Filters) ([]User, Metadata, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -267,6 +316,124 @@ func (u UserModel) List(filters Filters) ([]User, Metadata, error) {
 
 	metadata := CalculateMetadata(totalRecords, filters.Page, filters.PageSize)
 	return users, metadata, nil
+}
+
+func (u UserModel) ListByStatus(status string, filters Filters) ([]User, Metadata, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	query, err := userListQueryForSort(filters.Sort)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+
+	// Inject status filtering while preserving existing ordering variants.
+	query = strings.Replace(query, "FROM users", "FROM users WHERE status = $1", 1)
+	query = strings.Replace(query, "LIMIT $1 OFFSET $2", "LIMIT $2 OFFSET $3", 1)
+	args := []interface{}{strings.TrimSpace(status), filters.PageSize, (filters.Page - 1) * filters.PageSize}
+
+	rows, err := u.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	totalRecords := 0
+	users := []User{}
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(
+			&totalRecords,
+			&user.ID,
+			&user.FirstName,
+			&user.LastName,
+			&user.Email,
+			&user.Phone,
+			&user.Role,
+			&user.Status,
+			&user.EmailVerified,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		); err != nil {
+			return nil, Metadata{}, err
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	return users, CalculateMetadata(totalRecords, filters.Page, filters.PageSize), nil
+}
+
+func (u UserModel) UpdateRoleAndStatus(userID, role, status string) (*User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `UPDATE users
+		SET role = $1, status = $2, updated_at = NOW()
+		WHERE id = $3
+		RETURNING id, first_name, last_name, email, phone, password_hash, role, status, email_verified, created_at, updated_at`
+
+	var user User
+	err := u.DB.QueryRowContext(ctx, stmt, strings.TrimSpace(role), strings.TrimSpace(status), strings.TrimSpace(userID)).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.Phone,
+		&user.PasswordHash,
+		&user.Role,
+		&user.Status,
+		&user.EmailVerified,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (u UserModel) UpsertTenantAccess(userID, tenantID, role, status string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `INSERT INTO user_tenants (user_id, tenant_id, role, status)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, tenant_id)
+		DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status, updated_at = NOW()`
+
+	_, err := u.DB.ExecContext(ctx, stmt,
+		strings.TrimSpace(userID),
+		strings.TrimSpace(tenantID),
+		strings.TrimSpace(role),
+		strings.TrimSpace(status),
+	)
+	return err
+}
+
+func (u UserModel) HasTenantAccess(parent context.Context, userID, tenantID string) (bool, error) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT EXISTS(
+		SELECT 1
+		FROM user_tenants
+		WHERE user_id = $1 AND tenant_id = $2 AND status = 'active'
+	)`
+
+	var allowed bool
+	err := u.DB.QueryRowContext(ctx, stmt, strings.TrimSpace(userID), strings.TrimSpace(tenantID)).Scan(&allowed)
+	return allowed, err
 }
 
 func userListQueryForSort(sort string) (string, error) {
