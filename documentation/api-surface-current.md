@@ -49,6 +49,55 @@ This document lists all API endpoints currently implemented in the backend.
 - Auth: bearer token required.
 - Roles: `admin`, `manager`.
 
+## Treasury Endpoints
+1. `POST /v1/treasuries`
+- Purpose: create treasury.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+2. `GET /v1/treasuries`
+- Purpose: list treasuries.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+3. `GET /v1/treasuries/:id`
+- Purpose: get treasury by id.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+4. `POST /v1/treasuries/:id/vaults`
+- Purpose: create vault under treasury.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+5. `GET /v1/treasuries/:id/vaults`
+- Purpose: list vaults under treasury.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+6. `GET /v1/vaults/:id`
+- Purpose: get vault by id.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+7. `POST /v1/vaults/:id/assets`
+- Purpose: create vault asset (asset is unique per vault by asset_code + network).
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
+8. `GET /v1/vaults/:id/assets`
+- Purpose: list assets in vault.
+- Auth: bearer token required.
+- Roles: `admin`, `manager`.
+- Tenant header: required.
+
 ## Ops / Internal Job Endpoints
 1. `POST /v1/jobs/audit`
 - Purpose: enqueue audit job.
@@ -115,5 +164,7 @@ This document lists all API endpoints currently implemented in the backend.
 - Webhook contract and examples:
   - `documentation/runbooks/alchemy-webhook-integration.md`
 - Postman collection and environment:
+  - `documentation/postman/Nduracore-Current-API.postman_collection.json`
+  - `documentation/postman/Nduracore-Current-API.postman_environment.json`
   - `documentation/postman/Nduracore-Phase2.postman_collection.json`
   - `documentation/postman/Nduracore-Phase2.postman_environment.json`

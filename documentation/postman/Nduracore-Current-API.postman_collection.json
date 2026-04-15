@@ -15,8 +15,12 @@
             "method": "GET",
             "url": {
               "raw": "{{base_url}}/healthcheck",
-              "host": ["{{base_url}}"],
-              "path": ["healthcheck"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "healthcheck"
+              ]
             }
           }
         },
@@ -26,8 +30,12 @@
             "method": "GET",
             "url": {
               "raw": "{{base_url}}/liveness",
-              "host": ["{{base_url}}"],
-              "path": ["liveness"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "liveness"
+              ]
             }
           }
         },
@@ -37,8 +45,12 @@
             "method": "GET",
             "url": {
               "raw": "{{base_url}}/readiness",
-              "host": ["{{base_url}}"],
-              "path": ["readiness"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "readiness"
+              ]
             }
           }
         },
@@ -48,8 +60,12 @@
             "method": "GET",
             "url": {
               "raw": "{{base_url}}/metrics",
-              "host": ["{{base_url}}"],
-              "path": ["metrics"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "metrics"
+              ]
             }
           }
         }
@@ -63,7 +79,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -71,8 +90,14 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/auth/token",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "auth", "token"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "token"
+              ]
             }
           }
         }
@@ -86,8 +111,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -95,8 +126,13 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/users",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "users"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "users"
+              ]
             }
           }
         },
@@ -105,16 +141,322 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/v1/users?page=1&page_size=20&sort=created_at",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "users"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "users"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "page_size", "value": "20" },
-                { "key": "sort", "value": "created_at" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "created_at"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Treasury",
+      "item": [
+        {
+          "name": "Create Treasury",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Treasury\",\n  \"description\": \"Primary treasury for settlement flows\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/treasuries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "treasuries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Treasuries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/treasuries?page=1&page_size=20&sort=-created_at",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "treasuries"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "-created_at"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Treasury",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/treasuries/{{treasury_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "treasuries",
+                "{{treasury_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Vault",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Operations Vault\",\n  \"description\": \"Operational balances\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/treasuries/{{treasury_id}}/vaults",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "treasuries",
+                "{{treasury_id}}",
+                "vaults"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Vaults By Treasury",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/treasuries/{{treasury_id}}/vaults?page=1&page_size=20&sort=-created_at",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "treasuries",
+                "{{treasury_id}}",
+                "vaults"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "-created_at"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Vault",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/vaults/{{vault_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "vaults",
+                "{{vault_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Vault Asset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asset_code\": \"USDC\",\n  \"network\": \"eth-sepolia\",\n  \"metadata\": {\n    \"category\": \"stablecoin\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/vaults/{{vault_id}}/assets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "vaults",
+                "{{vault_id}}",
+                "assets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Vault Assets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/vaults/{{vault_id}}/assets?page=1&page_size=20&sort=-created_at",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "vaults",
+                "{{vault_id}}",
+                "assets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "-created_at"
+                }
               ]
             }
           }
@@ -129,8 +471,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -138,8 +486,14 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/jobs/audit",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "jobs", "audit"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "jobs",
+                "audit"
+              ]
             }
           }
         }
@@ -153,9 +507,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -163,8 +526,13 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/wallets",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "wallets"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "wallets"
+              ]
             }
           }
         },
@@ -173,17 +541,37 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/v1/wallets?page=1&page_size=20&sort=-created_at",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "wallets"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "wallets"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "page_size", "value": "20" },
-                { "key": "sort", "value": "-created_at" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "-created_at"
+                }
               ]
             }
           }
@@ -193,13 +581,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/v1/wallets/{{wallet_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "wallets", "{{wallet_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "wallets",
+                "{{wallet_id}}"
+              ]
             }
           }
         },
@@ -208,17 +608,39 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/v1/wallets/{{wallet_id}}/deposits?page=1&page_size=20&sort=-created_at",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "wallets", "{{wallet_id}}", "deposits"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "wallets",
+                "{{wallet_id}}",
+                "deposits"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "page_size", "value": "20" },
-                { "key": "sort", "value": "-created_at" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "-created_at"
+                }
               ]
             }
           }
@@ -228,9 +650,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" },
-              { "key": "X-Alchemy-Signature", "value": "{{alchemy_signature}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Alchemy-Signature",
+                "value": "{{alchemy_signature}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -238,8 +669,16 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/wallets/{{wallet_id}}/deposits/webhook",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "wallets", "{{wallet_id}}", "deposits", "webhook"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "wallets",
+                "{{wallet_id}}",
+                "deposits",
+                "webhook"
+              ]
             }
           }
         },
@@ -248,9 +687,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" },
-              { "key": "X-Alchemy-Signature", "value": "{{alchemy_signature}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "X-Alchemy-Signature",
+                "value": "{{alchemy_signature}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -258,8 +706,16 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/wallets/{{wallet_id}}/deposits/webhook",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "wallets", "{{wallet_id}}", "deposits", "webhook"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "wallets",
+                "{{wallet_id}}",
+                "deposits",
+                "webhook"
+              ]
             }
           }
         }
@@ -273,10 +729,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" },
-              { "key": "Idempotency-Key", "value": "{{idempotency_key}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotency_key}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -284,8 +752,13 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/withdrawals",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "withdrawals"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "withdrawals"
+              ]
             }
           }
         },
@@ -294,13 +767,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/v1/withdrawals/{{withdrawal_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "withdrawals", "{{withdrawal_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "withdrawals",
+                "{{withdrawal_id}}"
+              ]
             }
           }
         },
@@ -309,9 +794,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -319,8 +813,15 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/withdrawals/{{withdrawal_id}}/approve",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "withdrawals", "{{withdrawal_id}}", "approve"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "withdrawals",
+                "{{withdrawal_id}}",
+                "approve"
+              ]
             }
           }
         },
@@ -329,9 +830,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{bearer_token}}" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -339,8 +849,15 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/withdrawals/{{withdrawal_id}}/reject",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "withdrawals", "{{withdrawal_id}}", "reject"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "withdrawals",
+                "{{withdrawal_id}}",
+                "reject"
+              ]
             }
           }
         }
@@ -348,15 +865,53 @@
     }
   ],
   "variable": [
-    { "key": "base_url", "value": "http://localhost:4000" },
-    { "key": "admin_email", "value": "admin@vein.dev" },
-    { "key": "admin_password", "value": "VeinPass#2026!" },
-    { "key": "bearer_token", "value": "" },
-    { "key": "tenant_id", "value": "tenant-1" },
-    { "key": "wallet_id", "value": "" },
-    { "key": "withdrawal_id", "value": "" },
-    { "key": "approved_destination", "value": "0x1111111111111111111111111111111111111111" },
-    { "key": "idempotency_key", "value": "withdrawal-req-001" },
-    { "key": "alchemy_signature", "value": "" }
+    {
+      "key": "base_url",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "admin_email",
+      "value": "admin@vein.dev"
+    },
+    {
+      "key": "admin_password",
+      "value": "VeinPass#2026!"
+    },
+    {
+      "key": "bearer_token",
+      "value": ""
+    },
+    {
+      "key": "tenant_id",
+      "value": "tenant-1"
+    },
+    {
+      "key": "wallet_id",
+      "value": ""
+    },
+    {
+      "key": "withdrawal_id",
+      "value": ""
+    },
+    {
+      "key": "approved_destination",
+      "value": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "key": "idempotency_key",
+      "value": "withdrawal-req-001"
+    },
+    {
+      "key": "alchemy_signature",
+      "value": ""
+    },
+    {
+      "key": "treasury_id",
+      "value": ""
+    },
+    {
+      "key": "vault_id",
+      "value": ""
+    }
   ]
 }
