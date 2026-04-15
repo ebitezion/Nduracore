@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS vault_assets;
+DROP TABLE IF EXISTS vaults;
+DROP TABLE IF EXISTS treasuries;
