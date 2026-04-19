@@ -1,0 +1,16 @@
+./account.go
+./constants.go
+./generic_instruction.go
+./interface.go
+./json.go
+./keys.go
+./logging.go
+./message.go
+./nativetypes.go
+./program_ids.go
+./registry.go
+./sanitize.go
+./sysvar.go
+./transaction.go
+./types.go
+./util.go

@@ -1,0 +1,141 @@
+{
+  "info": {
+    "name": "Nduracore Infra Updates (N2/N4/N5/N6/N7)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Endpoints added for provider normalization, canonical state operations, vault aliasing, fee policy, and reconcile/DLQ operations."
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:4000" },
+    { "key": "token", "value": "" },
+    { "key": "tenant_id", "value": "tenant-1" },
+    { "key": "vault_id", "value": "" },
+    { "key": "wallet_id", "value": "" },
+    { "key": "withdrawal_id", "value": "" },
+    { "key": "dlq_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Vault Aliases",
+      "item": [
+        {
+          "name": "Create Vault Alias",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"fireblocks\",\n  \"external_vault_id\": \"12345\",\n  \"external_name\": \"Primary Ops Vault\"\n}"
+            },
+            "url": "{{base_url}}/v1/vaults/{{vault_id}}/aliases"
+          }
+        },
+        {
+          "name": "List Vault Aliases",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": "{{base_url}}/v1/vaults/{{vault_id}}/aliases?page=1&page_size=20"
+          }
+        },
+        {
+          "name": "Resolve Vault Alias",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": "{{base_url}}/v1/vault-aliases/resolve?provider=fireblocks&external_vault_id=12345"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fee Policies",
+      "item": [
+        {
+          "name": "Upsert Fee Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fee_bps\": 50,\n  \"min_fee_minor\": 10,\n  \"max_fee_minor\": 5000,\n  \"fee_destination\": \"treasury-fee-wallet\"\n}"
+            },
+            "url": "{{base_url}}/v1/fees/policies/eth-sepolia/USDC"
+          }
+        },
+        {
+          "name": "Get Fee Policy",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": "{{base_url}}/v1/fees/policies/eth-sepolia/USDC"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Provider Webhooks",
+      "item": [
+        {
+          "name": "Ingest Provider Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" },
+              { "key": "X-Alchemy-Signature", "value": "<signature-if-enabled>" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"activity\": [\n      {\n        \"hash\": \"0xabc123\",\n        \"value\": \"250000\",\n        \"confirmations\": 12\n      }\n    ]\n  }\n}"
+            },
+            "url": "{{base_url}}/v1/webhooks/alchemy?wallet_id={{wallet_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ops",
+      "item": [
+        {
+          "name": "Run Withdrawal Reconciliation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": "{{base_url}}/v1/ops/reconcile/withdrawals/run"
+          }
+        },
+        {
+          "name": "Replay DLQ Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": "{{base_url}}/v1/ops/events/dlq/{{dlq_id}}/replay"
+          }
+        }
+      ]
+    }
+  ]
+}

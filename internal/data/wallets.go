@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,6 +17,7 @@ type WalletModel struct {
 type Wallet struct {
 	ID        string    `json:"id"`
 	TenantID  string    `json:"tenant_id"`
+	VaultID   string    `json:"vault_id,omitempty"`
 	Asset     string    `json:"asset"`
 	Network   string    `json:"network"`
 	Address   string    `json:"address"`
@@ -38,10 +41,21 @@ type WalletDeposit struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type WalletBalance struct {
+	WalletID     string `json:"wallet_id"`
+	TenantID     string `json:"tenant_id"`
+	VaultID      string `json:"vault_id,omitempty"`
+	Address      string `json:"address"`
+	Asset        string `json:"asset"`
+	Network      string `json:"network"`
+	BalanceMinor string `json:"balance_minor"`
+}
+
 type Withdrawal struct {
 	ID                string    `json:"id"`
 	TenantID          string    `json:"tenant_id"`
 	WalletID          string    `json:"wallet_id"`
+	VaultID           string    `json:"vault_id,omitempty"`
 	Destination       string    `json:"destination"`
 	Asset             string    `json:"asset"`
 	Network           string    `json:"network"`
@@ -81,12 +95,13 @@ func (m WalletModel) CreateWallet(ctx context.Context, wallet *Wallet) error {
 	ctx, cancel := NewTimeoutContext(ctx)
 	defer cancel()
 
-	stmt := `INSERT INTO wallets (tenant_id, asset, network, address, provider, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
+	stmt := `INSERT INTO wallets (tenant_id, vault_id, asset, network, address, provider, status)
+		VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7)
 		RETURNING id, created_at, updated_at`
 
 	return m.DB.QueryRowContext(ctx, stmt,
 		wallet.TenantID,
+		wallet.VaultID,
 		wallet.Asset,
 		wallet.Network,
 		wallet.Address,
@@ -99,7 +114,7 @@ func (m WalletModel) GetWallet(ctx context.Context, tenantID, walletID string) (
 	ctx, cancel := NewTimeoutContext(ctx)
 	defer cancel()
 
-	stmt := `SELECT id, tenant_id, asset, network, address, provider, status, created_at, updated_at
+	stmt := `SELECT id, tenant_id, COALESCE(vault_id::text, ''), asset, network, address, provider, status, created_at, updated_at
 		FROM wallets
 		WHERE tenant_id = $1 AND id = $2`
 
@@ -107,6 +122,7 @@ func (m WalletModel) GetWallet(ctx context.Context, tenantID, walletID string) (
 	err := m.DB.QueryRowContext(ctx, stmt, tenantID, walletID).Scan(
 		&wallet.ID,
 		&wallet.TenantID,
+		&wallet.VaultID,
 		&wallet.Asset,
 		&wallet.Network,
 		&wallet.Address,
@@ -125,17 +141,69 @@ func (m WalletModel) GetWallet(ctx context.Context, tenantID, walletID string) (
 	return &wallet, nil
 }
 
-func (m WalletModel) ListWallets(ctx context.Context, tenantID string, filters Filters) ([]Wallet, Metadata, error) {
+func (m WalletModel) GetWalletByVaultAssetNetwork(ctx context.Context, tenantID, vaultID, asset, network string) (*Wallet, error) {
 	ctx, cancel := NewTimeoutContext(ctx)
 	defer cancel()
 
-	stmt := `SELECT count(*) OVER(), id, tenant_id, asset, network, address, provider, status, created_at, updated_at
+	stmt := `SELECT id, tenant_id, COALESCE(vault_id::text, ''), asset, network, address, provider, status, created_at, updated_at
 		FROM wallets
-		WHERE tenant_id = $1
+		WHERE tenant_id = $1 AND vault_id = $2::uuid AND asset = $3 AND network = $4 AND status = 'active'
 		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`
+		LIMIT 1`
 
-	rows, err := m.DB.QueryContext(ctx, stmt, tenantID, filters.PageSize, (filters.Page-1)*filters.PageSize)
+	var wallet Wallet
+	err := m.DB.QueryRowContext(ctx, stmt, tenantID, vaultID, asset, network).Scan(
+		&wallet.ID,
+		&wallet.TenantID,
+		&wallet.VaultID,
+		&wallet.Asset,
+		&wallet.Network,
+		&wallet.Address,
+		&wallet.Provider,
+		&wallet.Status,
+		&wallet.CreatedAt,
+		&wallet.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return &wallet, nil
+}
+
+func (m WalletModel) ListWallets(ctx context.Context, tenantID, vaultID, asset, network string, filters Filters) ([]Wallet, Metadata, error) {
+	ctx, cancel := NewTimeoutContext(ctx)
+	defer cancel()
+
+	stmt := `SELECT count(*) OVER(), id, tenant_id, COALESCE(vault_id::text, ''), asset, network, address, provider, status, created_at, updated_at
+		FROM wallets
+		WHERE tenant_id = $1`
+	args := []interface{}{tenantID}
+	argPosition := 2
+
+	if strings.TrimSpace(vaultID) != "" {
+		stmt += fmt.Sprintf(" AND vault_id = $%d::uuid", argPosition)
+		args = append(args, vaultID)
+		argPosition++
+	}
+	if strings.TrimSpace(asset) != "" {
+		stmt += fmt.Sprintf(" AND asset = $%d", argPosition)
+		args = append(args, asset)
+		argPosition++
+	}
+	if strings.TrimSpace(network) != "" {
+		stmt += fmt.Sprintf(" AND network = $%d", argPosition)
+		args = append(args, network)
+		argPosition++
+	}
+
+	stmt += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
+	args = append(args, filters.PageSize, (filters.Page-1)*filters.PageSize)
+
+	rows, err := m.DB.QueryContext(ctx, stmt, args...)
 	if err != nil {
 		return nil, Metadata{}, err
 	}
@@ -149,6 +217,7 @@ func (m WalletModel) ListWallets(ctx context.Context, tenantID string, filters F
 			&total,
 			&wallet.ID,
 			&wallet.TenantID,
+			&wallet.VaultID,
 			&wallet.Asset,
 			&wallet.Network,
 			&wallet.Address,
@@ -239,13 +308,14 @@ func (m WalletModel) CreateWithdrawal(ctx context.Context, withdrawal *Withdrawa
 	ctx, cancel := NewTimeoutContext(ctx)
 	defer cancel()
 
-	stmt := `INSERT INTO withdrawals (tenant_id, wallet_id, destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	stmt := `INSERT INTO withdrawals (tenant_id, wallet_id, vault_id, destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by)
+		VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at, updated_at`
 
 	return m.DB.QueryRowContext(ctx, stmt,
 		withdrawal.TenantID,
 		withdrawal.WalletID,
+		withdrawal.VaultID,
 		withdrawal.Destination,
 		withdrawal.Asset,
 		withdrawal.Network,
@@ -264,7 +334,7 @@ func (m WalletModel) GetWithdrawal(ctx context.Context, tenantID, withdrawalID s
 	ctx, cancel := NewTimeoutContext(ctx)
 	defer cancel()
 
-	stmt := `SELECT id, tenant_id, wallet_id, destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
+	stmt := `SELECT id, tenant_id, wallet_id, COALESCE(vault_id::text, ''), destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
 		FROM withdrawals
 		WHERE tenant_id = $1 AND id = $2`
 
@@ -273,6 +343,7 @@ func (m WalletModel) GetWithdrawal(ctx context.Context, tenantID, withdrawalID s
 		&wd.ID,
 		&wd.TenantID,
 		&wd.WalletID,
+		&wd.VaultID,
 		&wd.Destination,
 		&wd.Asset,
 		&wd.Network,
@@ -301,7 +372,7 @@ func (m WalletModel) ListRecentWithdrawals(ctx context.Context, tenantID string,
 	ctx, cancel := NewTimeoutContext(ctx)
 	defer cancel()
 
-	stmt := `SELECT id, tenant_id, wallet_id, destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
+	stmt := `SELECT id, tenant_id, wallet_id, COALESCE(vault_id::text, ''), destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
 		FROM withdrawals
 		WHERE tenant_id = $1 AND created_at >= $2`
 
@@ -318,6 +389,7 @@ func (m WalletModel) ListRecentWithdrawals(ctx context.Context, tenantID string,
 			&wd.ID,
 			&wd.TenantID,
 			&wd.WalletID,
+			&wd.VaultID,
 			&wd.Destination,
 			&wd.Asset,
 			&wd.Network,
@@ -341,6 +413,117 @@ func (m WalletModel) ListRecentWithdrawals(ctx context.Context, tenantID string,
 		return nil, err
 	}
 	return result, nil
+}
+
+func (m WalletModel) ListWithdrawals(ctx context.Context, tenantID, status string, filters Filters) ([]Withdrawal, Metadata, error) {
+	ctx, cancel := NewTimeoutContext(ctx)
+	defer cancel()
+
+	stmt := `SELECT count(*) OVER(), id, tenant_id, wallet_id, COALESCE(vault_id::text, ''), destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
+		FROM withdrawals
+		WHERE tenant_id = $1`
+	args := []interface{}{tenantID}
+	argPosition := 2
+
+	if strings.TrimSpace(status) != "" {
+		stmt += fmt.Sprintf(" AND status = $%d", argPosition)
+		args = append(args, status)
+		argPosition++
+	}
+
+	stmt += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
+	args = append(args, filters.PageSize, (filters.Page-1)*filters.PageSize)
+
+	rows, err := m.DB.QueryContext(ctx, stmt, args...)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	items := make([]Withdrawal, 0)
+	total := 0
+	for rows.Next() {
+		var wd Withdrawal
+		if err := rows.Scan(
+			&total,
+			&wd.ID,
+			&wd.TenantID,
+			&wd.WalletID,
+			&wd.VaultID,
+			&wd.Destination,
+			&wd.Asset,
+			&wd.Network,
+			&wd.AmountMinor,
+			&wd.Status,
+			&wd.RequiredApprovals,
+			&wd.ApprovedCount,
+			&wd.PolicyReason,
+			&wd.RiskLevel,
+			&wd.ProviderTxHash,
+			&wd.RequestedBy,
+			&wd.CreatedAt,
+			&wd.UpdatedAt,
+		); err != nil {
+			return nil, Metadata{}, err
+		}
+		items = append(items, wd)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	return items, CalculateMetadata(total, filters.Page, filters.PageSize), nil
+}
+
+func (m WalletModel) ListWithdrawalsByWallet(ctx context.Context, tenantID, walletID string, filters Filters) ([]Withdrawal, Metadata, error) {
+	ctx, cancel := NewTimeoutContext(ctx)
+	defer cancel()
+
+	stmt := `SELECT count(*) OVER(), id, tenant_id, wallet_id, COALESCE(vault_id::text, ''), destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
+		FROM withdrawals
+		WHERE tenant_id = $1 AND wallet_id = $2
+		ORDER BY created_at DESC
+		LIMIT $3 OFFSET $4`
+
+	rows, err := m.DB.QueryContext(ctx, stmt, tenantID, walletID, filters.PageSize, (filters.Page-1)*filters.PageSize)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	items := make([]Withdrawal, 0)
+	total := 0
+	for rows.Next() {
+		var wd Withdrawal
+		if err := rows.Scan(
+			&total,
+			&wd.ID,
+			&wd.TenantID,
+			&wd.WalletID,
+			&wd.VaultID,
+			&wd.Destination,
+			&wd.Asset,
+			&wd.Network,
+			&wd.AmountMinor,
+			&wd.Status,
+			&wd.RequiredApprovals,
+			&wd.ApprovedCount,
+			&wd.PolicyReason,
+			&wd.RiskLevel,
+			&wd.ProviderTxHash,
+			&wd.RequestedBy,
+			&wd.CreatedAt,
+			&wd.UpdatedAt,
+		); err != nil {
+			return nil, Metadata{}, err
+		}
+		items = append(items, wd)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	return items, CalculateMetadata(total, filters.Page, filters.PageSize), nil
 }
 
 func (m WalletModel) AddApproval(ctx context.Context, approval *WithdrawalApproval) error {

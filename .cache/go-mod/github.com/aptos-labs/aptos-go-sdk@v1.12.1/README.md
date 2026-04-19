@@ -1,0 +1,235 @@
+[![codecov](https://codecov.io/gh/aptos-labs/aptos-go-sdk/graph/badge.svg)](https://codecov.io/gh/aptos-labs/aptos-go-sdk)
+[![Go Reference](https://pkg.go.dev/badge/github.com/aptos-labs/aptos-go-sdk.svg)](https://pkg.go.dev/github.com/aptos-labs/aptos-go-sdk)
+[![Go Report Card](https://goreportcard.com/badge/github.com/aptos-labs/aptos-go-sdk)](https://goreportcard.com/report/github.com/aptos-labs/aptos-go-sdk)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/aptos-labs/aptos-go-sdk)
+[![GitHub Tag](https://img.shields.io/github/v/tag/aptos-labs/aptos-go-sdk?label=Latest%20Version)](https://pkg.go.dev/github.com/aptos-labs/aptos-go-sdk)
+
+# Aptos Go SDK
+
+A comprehensive Go SDK for building applications on the [Aptos blockchain](https://aptos.dev).
+
+> **Looking for v2?** The [Aptos Go SDK v2](v2/) is a modern, idiomatic rewrite with `context.Context` support, functional options, Go 1.24+ features, and a fluent transaction builder. **New projects should use v2.**
+>
+> ```bash
+> go get github.com/aptos-labs/aptos-go-sdk/v2
+> ```
+>
+> See the [v2 README](v2/README.md) and [v2 GoDocs](https://godocs.io/github.com/aptos-labs/aptos-go-sdk/v2) for details.
+
+## Features
+
+- **Multiple Key Types** -- Ed25519, Secp256k1, MultiKey, and MultiEd25519 support
+- **Transaction Building** -- Simple and advanced transaction construction
+- **Sponsored Transactions** -- Fee payer and multi-agent transaction support
+- **Fungible Assets** -- Full FA standard support
+- **ANS Integration** -- Aptos Names Service (.apt domain) resolution
+- **Telemetry** -- OpenTelemetry tracing and metrics
+- **Code Generation** -- Generate type-safe Go bindings from Move ABIs
+- **Concurrent Operations** -- Batch transaction submission
+
+## Installation
+
+```bash
+go get github.com/aptos-labs/aptos-go-sdk
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    "github.com/aptos-labs/aptos-go-sdk"
+)
+
+func main() {
+    client, err := aptos.NewClient(aptos.TestnetConfig)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    account, err := aptos.NewEd25519Account()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    err = client.Fund(account.AccountAddress(), 100_000_000)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    balance, err := client.AccountAPTBalance(account.AccountAddress())
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Balance: %d octas\n", balance)
+}
+```
+
+## Examples
+
+The `examples/` directory contains runnable examples that also serve as integration tests:
+
+| Example | Description |
+|---------|-------------|
+| [`transfer_coin`](examples/transfer_coin) | Basic APT transfer between accounts |
+| [`sponsored_transaction`](examples/sponsored_transaction) | Fee payer sponsored transactions |
+| [`multi_agent`](examples/multi_agent) | Multi-signer transactions |
+| [`fungible_asset`](examples/fungible_asset) | Fungible asset operations |
+| [`alternative_signing`](examples/alternative_signing) | Secp256k1 and other signing schemes |
+| [`external_signing`](examples/external_signing) | External/hardware wallet signing |
+| [`offchain_multisig`](examples/offchain_multisig) | Off-chain multi-signature transactions |
+| [`onchain_multisig`](examples/onchain_multisig) | On-chain multi-signature transactions |
+| [`orderless_transaction`](examples/orderless_transaction) | Orderless (sequence-number-free) transactions |
+| [`performance_transaction`](examples/performance_transaction) | High-throughput transaction submission |
+| [`sending_concurrent_transactions`](examples/sending_concurrent_transactions) | Concurrent batch operations |
+| [`script_transaction`](examples/script_transaction) | Execute Move scripts |
+| [`script_args_transaction`](examples/script_args_transaction) | Move scripts with typed arguments |
+| [`local_abi`](examples/local_abi) | Code generation from local ABI files |
+| [`remote_abi`](examples/remote_abi) | Code generation from on-chain ABIs |
+
+Run an example:
+
+```bash
+cd examples/transfer_coin
+go run main.go
+```
+
+## Network Configuration
+
+```go
+// Testnet (recommended for development)
+client, _ := aptos.NewClient(aptos.TestnetConfig)
+
+// Devnet (resets weekly)
+client, _ := aptos.NewClient(aptos.DevnetConfig)
+
+// Mainnet
+client, _ := aptos.NewClient(aptos.MainnetConfig)
+
+// Local node
+client, _ := aptos.NewClient(aptos.LocalnetConfig)
+```
+
+## Building Transactions
+
+### Simple Transfer
+
+```go
+txn, err := aptos.APTTransferTransaction(client, sender, receiver, amount)
+signedTxn, err := txn.SignedTransaction(sender)
+resp, err := client.SubmitTransaction(signedTxn)
+```
+
+### With Options
+
+```go
+rawTxn, err := client.BuildTransaction(
+    sender.AccountAddress(),
+    payload,
+    aptos.MaxGasAmount(10_000),
+    aptos.GasUnitPrice(100),
+    aptos.ExpirationSeconds(300),
+)
+```
+
+### Sponsored Transaction
+
+```go
+rawTxn, err := client.BuildTransactionMultiAgent(
+    sender.AccountAddress(),
+    payload,
+    aptos.FeePayer(&feePayerAddress),
+)
+```
+
+## Aptos Names Service (ANS)
+
+```go
+ansClient := aptos.NewANSClient(client)
+
+// Resolve name to address
+address, err := ansClient.Resolve("alice.apt")
+
+// Get primary name for address
+name, err := ansClient.GetPrimaryName(address)
+
+// Check availability
+available, err := ansClient.IsAvailable("myname")
+```
+
+## Telemetry
+
+Add OpenTelemetry observability:
+
+```go
+import "github.com/aptos-labs/aptos-go-sdk/telemetry"
+
+httpClient, _ := telemetry.NewInstrumentedHTTPClient(
+    telemetry.WithServiceName("my-app"),
+)
+client, _ := aptos.NewNodeClientWithHttpClient(
+    aptos.MainnetConfig.NodeUrl,
+    aptos.MainnetConfig.ChainId,
+    httpClient,
+)
+```
+
+## Code Generation
+
+Generate type-safe Go code from Move ABIs:
+
+```bash
+# Install the generator
+go install github.com/aptos-labs/aptos-go-sdk/cmd/aptosgen@latest
+
+# Generate from on-chain module
+aptosgen -address 0x1 -module coin -package coin -output coin/
+
+# Generate from local ABI file
+aptosgen -abi coin.json -package coin -output coin/
+```
+
+## Documentation
+
+### v2 (recommended for new projects)
+
+- [v2 Go Package Documentation](https://pkg.go.dev/github.com/aptos-labs/aptos-go-sdk/v2)
+- [v2 GoDocs](https://godocs.io/github.com/aptos-labs/aptos-go-sdk/v2)
+
+### v1
+
+- [Go Package Documentation](https://pkg.go.dev/github.com/aptos-labs/aptos-go-sdk)
+- [GoDocs](https://godocs.io/github.com/aptos-labs/aptos-go-sdk)
+
+### General
+
+- [Aptos Developer Docs](https://aptos.dev)
+- [Go SDK Guide](https://aptos.dev/sdks/go-sdk/)
+
+## Development
+
+1. Clone the repository
+2. Make your changes
+3. Run formatters and linters:
+   ```bash
+   gofumpt -l -w .
+   golangci-lint run
+   ```
+4. Run tests:
+   ```bash
+   go test ./...
+   ```
+5. Submit a PR
+
+## Publishing
+
+1. Update `CHANGELOG.md` with a PR
+2. Create a new tag (e.g., `v1.12.0`) with the list of changes
+
+## License
+
+Apache 2.0 -- See [LICENSE](LICENSE) for details.

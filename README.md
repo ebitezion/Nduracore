@@ -203,12 +203,19 @@ curl -X POST http://localhost:4000/v1/wallets \
   -H "Authorization: Bearer <token>" \
   -H "X-Tenant-ID: tenant-1" \
   -H "Content-Type: application/json" \
-  -d '{"asset":"USDC","network":"eth-sepolia"}'
+  -d '{"vault_id":"<vault_id>","asset":"USDC","network":"eth-sepolia"}'
 ```
 
 #### `GET /v1/wallets`
 ```bash
 curl "http://localhost:4000/v1/wallets?page=1&page_size=20&sort=-created_at" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+Optional filters: `vault_id` (UUID), `asset`, `network`.
+```bash
+curl "http://localhost:4000/v1/wallets?vault_id=<vault_id>&asset=USDC&network=eth-sepolia&page=1&page_size=20&sort=-created_at" \
   -H "Authorization: Bearer <token>" \
   -H "X-Tenant-ID: tenant-1"
 ```
@@ -248,9 +255,113 @@ curl -X POST http://localhost:4000/v1/withdrawals \
   -d '{"wallet_id":"<wallet_id>","destination":"0x1111111111111111111111111111111111111111","amount_minor":100000}'
 ```
 
+Vault mode (mutually exclusive with wallet mode):
+```bash
+curl -X POST http://localhost:4000/v1/withdrawals \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1" \
+  -H "Idempotency-Key: withdrawal-req-002" \
+  -H "Content-Type: application/json" \
+  -d '{"vault_id":"<vault_id>","asset":"USDC","network":"eth-sepolia","destination":"0x1111111111111111111111111111111111111111","amount_minor":100000}'
+```
+
 #### `GET /v1/withdrawals/:id`
 ```bash
 curl http://localhost:4000/v1/withdrawals/<withdrawal_id> \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `GET /v1/withdrawals`
+```bash
+curl "http://localhost:4000/v1/withdrawals?page=1&page_size=20&sort=-created_at" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+### 8) Chain Analysis APIs
+
+#### `GET /v1/wallets/:id/balance`
+```bash
+curl "http://localhost:4000/v1/wallets/<wallet_id>/balance?asset=USDC" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `GET /v1/wallets/:id/transactions`
+```bash
+curl "http://localhost:4000/v1/wallets/<wallet_id>/transactions?page=1&page_size=20" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `GET /v1/wallets/:id/gas-estimate`
+```bash
+curl "http://localhost:4000/v1/wallets/<wallet_id>/gas-estimate?destination=0x1111111111111111111111111111111111111111&amount_minor=100000&asset=USDC" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `POST /v1/wallets/:id/withdrawals/simulate`
+```bash
+curl -X POST "http://localhost:4000/v1/wallets/<wallet_id>/withdrawals/simulate" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1" \
+  -H "Content-Type: application/json" \
+  -d '{"destination":"0x1111111111111111111111111111111111111111","amount_minor":100000,"asset":"USDC"}'
+```
+
+#### `GET /v1/withdrawals/:id/trace`
+```bash
+curl "http://localhost:4000/v1/withdrawals/<withdrawal_id>/trace" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `GET /v1/wallets/:id/token-allowances`
+```bash
+curl "http://localhost:4000/v1/wallets/<wallet_id>/token-allowances?asset=USDC&spender=0x1111111111111111111111111111111111111111" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `GET /v1/networks/:network/status`
+```bash
+curl "http://localhost:4000/v1/networks/eth-sepolia/status" \
+  -H "Authorization: Bearer <token>"
+```
+
+#### `GET /v1/wallets/:id/risk-score`
+```bash
+curl "http://localhost:4000/v1/wallets/<wallet_id>/risk-score" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+#### `POST /v1/addresses/validate`
+```bash
+curl -X POST "http://localhost:4000/v1/addresses/validate" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"network":"eth-sepolia","address":"0x1111111111111111111111111111111111111111"}'
+```
+
+#### `GET /v1/assets/:network/:asset/metadata`
+```bash
+curl "http://localhost:4000/v1/assets/eth-sepolia/USDC/metadata" \
+  -H "Authorization: Bearer <token>"
+```
+
+#### `GET /v1/wallets/:id/nonces`
+```bash
+curl "http://localhost:4000/v1/wallets/<wallet_id>/nonces" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: tenant-1"
+```
+
+Pending-only view for a tenant:
+```bash
+curl "http://localhost:4000/v1/withdrawals?status=policy_pending&page=1&page_size=20&sort=-created_at" \
   -H "Authorization: Bearer <token>" \
   -H "X-Tenant-ID: tenant-1"
 ```
@@ -278,3 +389,35 @@ curl -X POST http://localhost:4000/v1/withdrawals/<withdrawal_id>/reject \
 - API inventory: `documentation/api-surface-current.md`
 - Full Postman collection: `documentation/postman/Nduracore-Current-API.postman_collection.json`
 - Full Postman environment: `documentation/postman/Nduracore-Current-API.postman_environment.json`
+- Infra updates (N2/N4/N5/N6/N7): `documentation/simple-updates-2026-04-19.md`
+- Infra updates Postman collection: `documentation/postman/Nduracore-Infra-Updates.postman_collection.json`
+
+### Asset Registry Sync
+
+Use the registry sync command to bulk upsert token coverage from env-configured catalogs:
+
+```bash
+go run ./cmd/assetsync
+```
+
+Reusable cross-platform catalog command:
+
+```bash
+go run ./cmd/assetsync -catalog ./documentation/asset_catalog.nduracore.json --from-env-erc20=false
+```
+
+Generate and load a 1000-asset catalog (popular chains + live/testnet native seeds):
+
+```bash
+go run ./cmd/assetcataloggen -out ./documentation/asset_catalog.top1000.json -limit 1000
+go run ./cmd/assetsync -catalog ./documentation/asset_catalog.top1000.json --from-env-erc20=false --reset-active
+```
+
+Required:
+- `DB_DSN`
+
+When syncing from env (`--from-env-erc20=true`, default):
+- `ALCHEMY_ERC20_CONTRACTS_JSON` (`{"network:ASSET":"0xContractAddress"}`)
+
+Optional:
+- `ALCHEMY_ERC20_DECIMALS_JSON` (`{"network:ASSET":6}`)

@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS reconciliation_items;
+DROP TABLE IF EXISTS reconciliation_runs;
+DROP TABLE IF EXISTS event_dlq;
+DROP TABLE IF EXISTS event_failures;
+DROP TABLE IF EXISTS normalized_events;
+DROP TABLE IF EXISTS provider_events;
+DROP TABLE IF EXISTS withdrawal_state_history;
+DROP TABLE IF EXISTS fee_charges;
+DROP TABLE IF EXISTS fee_policies;
+DROP TABLE IF EXISTS vault_aliases;

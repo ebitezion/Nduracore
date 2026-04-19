@@ -83,3 +83,23 @@ func TestGetSecretEnvReturnsFallback(t *testing.T) {
 		t.Fatalf("expected fallback-value, got %q", secret)
 	}
 }
+
+func TestParseStringMapJSON(t *testing.T) {
+	result, err := parseStringMapJSON(`{"eth-mainnet":"https://mainnet"," eth-sepolia ":"https://sepolia"}`)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result["eth-mainnet"] != "https://mainnet" {
+		t.Fatalf("unexpected mainnet value: %q", result["eth-mainnet"])
+	}
+	if result["eth-sepolia"] != "https://sepolia" {
+		t.Fatalf("unexpected sepolia value: %q", result["eth-sepolia"])
+	}
+}
+
+func TestParseStringMapJSONInvalid(t *testing.T) {
+	_, err := parseStringMapJSON(`{"eth-mainnet":}`)
+	if err == nil {
+		t.Fatal("expected error for invalid json")
+	}
+}

@@ -8,10 +8,12 @@ type WalletProvider interface {
 	SimulateTransfer(ctx context.Context, req SimulateTransferRequest) (SimulateTransferResult, error)
 	BroadcastTransfer(ctx context.Context, req BroadcastTransferRequest) (BroadcastTransferResult, error)
 	ListDeposits(ctx context.Context, req ListDepositsRequest) ([]DetectedDeposit, error)
+	GetBalance(ctx context.Context, req GetBalanceRequest) (GetBalanceResult, error)
 }
 
 type CreateAddressRequest struct {
 	TenantID string
+	VaultID  string
 	Asset    string
 	Network  string
 }
@@ -37,6 +39,7 @@ type SimulateTransferResult struct {
 
 type BroadcastTransferRequest struct {
 	TenantID    string
+	VaultID     string
 	FromAddress string
 	ToAddress   string
 	Asset       string
@@ -61,4 +64,16 @@ type DetectedDeposit struct {
 	AmountMinor   int64
 	Confirmations int
 	Status        string
+}
+
+type GetBalanceRequest struct {
+	TenantID string
+	VaultID  string
+	Address  string
+	Asset    string
+	Network  string
+}
+
+type GetBalanceResult struct {
+	BalanceMinor string
 }

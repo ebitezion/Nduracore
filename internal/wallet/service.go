@@ -9,7 +9,9 @@ import (
 type Service interface {
 	CreateWallet(ctx context.Context, input CreateWalletInput) (data.Wallet, error)
 	GetWallet(ctx context.Context, tenantID, walletID string) (data.Wallet, error)
-	ListWallets(ctx context.Context, tenantID string, filters data.Filters) ([]data.Wallet, data.Metadata, error)
+	GetWalletBalance(ctx context.Context, input GetWalletBalanceInput) (data.WalletBalance, error)
+	ListWallets(ctx context.Context, input ListWalletsInput) ([]data.Wallet, data.Metadata, error)
+	ListWithdrawals(ctx context.Context, input ListWithdrawalsInput) ([]data.Withdrawal, data.Metadata, error)
 	SyncDepositsForWallet(ctx context.Context, tenantID, walletID string) (int, error)
 	ListDeposits(ctx context.Context, tenantID, walletID string, filters data.Filters) ([]data.WalletDeposit, data.Metadata, error)
 	RecordDeposit(ctx context.Context, input RecordDepositInput) (data.WalletDeposit, error)
@@ -30,13 +32,37 @@ type RecordDepositInput struct {
 
 type CreateWalletInput struct {
 	TenantID string
+	VaultID  string
 	Asset    string
 	Network  string
+}
+
+type ListWalletsInput struct {
+	TenantID string
+	VaultID  string
+	Asset    string
+	Network  string
+	Filters  data.Filters
+}
+
+type GetWalletBalanceInput struct {
+	TenantID string
+	WalletID string
+	Asset    string
+}
+
+type ListWithdrawalsInput struct {
+	TenantID string
+	Status   string
+	Filters  data.Filters
 }
 
 type RequestWithdrawalInput struct {
 	TenantID    string
 	WalletID    string
+	VaultID     string
+	Asset       string
+	Network     string
 	Destination string
 	AmountMinor int64
 	RequestedBy string

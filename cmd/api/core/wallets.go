@@ -2,13 +2,13 @@ package core
 
 import (
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 
 	"github.com/ebitezion/Nduracore/internal/data"
 	"github.com/ebitezion/Nduracore/internal/validator"
 	"github.com/ebitezion/Nduracore/internal/wallet"
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -20,6 +20,7 @@ func (app *application) createWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
+		VaultID string `json:"vault_id"`
 		Asset   string `json:"asset"`
 		Network string `json:"network"`
 	}
@@ -31,6 +32,7 @@ func (app *application) createWallet(w http.ResponseWriter, r *http.Request) {
 
 	createdWallet, err := app.walletService.CreateWallet(r.Context(), wallet.CreateWalletInput{
 		TenantID: tenantID,
+		VaultID:  input.VaultID,
 		Asset:    input.Asset,
 		Network:  input.Network,
 	})
@@ -42,6 +44,7 @@ func (app *application) createWallet(w http.ResponseWriter, r *http.Request) {
 	app.logAuditEvent(r, "wallet.create", "success", map[string]interface{}{
 		"tenant_id": tenantID,
 		"wallet_id": createdWallet.ID,
+		"vault_id":  createdWallet.VaultID,
 		"asset":     createdWallet.Asset,
 		"network":   createdWallet.Network,
 	})
@@ -61,6 +64,10 @@ func (app *application) getWallet(w http.ResponseWriter, r *http.Request) {
 		app.notFoundErrorResponse(w, r)
 		return
 	}
+	if !isValidUUID(walletID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "wallet id must be a valid UUID")
+		return
+	}
 
 	result, err := app.walletService.GetWallet(r.Context(), tenantID, walletID)
 	if err != nil {
@@ -73,6 +80,50 @@ func (app *application) getWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, envelope{"wallet": result}, nil)
+}
+
+func (app *application) getWalletBalance(w http.ResponseWriter, r *http.Request) {
+	tenantID := app.tenantIDFromRequest(r)
+	if tenantID == "" {
+		app.errorResponse(w, r, http.StatusBadRequest, "X-Tenant-ID header is required")
+		return
+	}
+
+	walletID := app.pathParam(r, "id")
+	if walletID == "" {
+		app.notFoundErrorResponse(w, r)
+		return
+	}
+	if !isValidUUID(walletID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "wallet id must be a valid UUID")
+		return
+	}
+
+	asset := strings.TrimSpace(app.readString(r.URL.Query(), "asset", ""))
+	result, err := app.walletService.GetWalletBalance(r.Context(), wallet.GetWalletBalanceInput{
+		TenantID: tenantID,
+		WalletID: walletID,
+		Asset:    asset,
+	})
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundErrorResponse(w, r)
+			return
+		}
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	app.logAuditEvent(r, "wallet.balance.read", "success", map[string]interface{}{
+		"tenant_id":     tenantID,
+		"wallet_id":     result.WalletID,
+		"vault_id":      result.VaultID,
+		"asset":         result.Asset,
+		"network":       result.Network,
+		"balance_minor": result.BalanceMinor,
+	})
+
+	_ = app.writeJSON(w, http.StatusOK, envelope{"balance": result}, nil)
 }
 
 func (app *application) listWallets(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +147,21 @@ func (app *application) listWallets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wallets, metadata, err := app.walletService.ListWallets(r.Context(), tenantID, filters)
+	vaultID := strings.TrimSpace(app.readString(qs, "vault_id", ""))
+	if vaultID != "" && !isValidUUID(vaultID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "vault_id must be a valid UUID")
+		return
+	}
+	asset := strings.TrimSpace(app.readString(qs, "asset", ""))
+	network := strings.TrimSpace(app.readString(qs, "network", ""))
+
+	wallets, metadata, err := app.walletService.ListWallets(r.Context(), wallet.ListWalletsInput{
+		TenantID: tenantID,
+		VaultID:  vaultID,
+		Asset:    asset,
+		Network:  network,
+		Filters:  filters,
+	})
 	if err != nil {
 		app.serverErrorResponse(w, r)
 		return
@@ -115,6 +180,10 @@ func (app *application) listWalletDeposits(w http.ResponseWriter, r *http.Reques
 	walletID := app.pathParam(r, "id")
 	if walletID == "" {
 		app.notFoundErrorResponse(w, r)
+		return
+	}
+	if !isValidUUID(walletID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "wallet id must be a valid UUID")
 		return
 	}
 
@@ -154,6 +223,9 @@ func (app *application) createWithdrawal(w http.ResponseWriter, r *http.Request)
 
 	var input struct {
 		WalletID    string `json:"wallet_id"`
+		VaultID     string `json:"vault_id"`
+		Asset       string `json:"asset"`
+		Network     string `json:"network"`
 		Destination string `json:"destination"`
 		AmountMinor int64  `json:"amount_minor"`
 	}
@@ -167,6 +239,9 @@ func (app *application) createWithdrawal(w http.ResponseWriter, r *http.Request)
 	withdrawalResult, err := app.walletService.RequestWithdrawal(r.Context(), wallet.RequestWithdrawalInput{
 		TenantID:    tenantID,
 		WalletID:    input.WalletID,
+		VaultID:     input.VaultID,
+		Asset:       input.Asset,
+		Network:     input.Network,
 		Destination: input.Destination,
 		AmountMinor: input.AmountMinor,
 		RequestedBy: requestedBy,
@@ -180,6 +255,7 @@ func (app *application) createWithdrawal(w http.ResponseWriter, r *http.Request)
 		"tenant_id":          tenantID,
 		"withdrawal_id":      withdrawalResult.ID,
 		"wallet_id":          withdrawalResult.WalletID,
+		"vault_id":           withdrawalResult.VaultID,
 		"amount_minor":       withdrawalResult.AmountMinor,
 		"required_approvals": withdrawalResult.RequiredApprovals,
 		"risk_level":         withdrawalResult.RiskLevel,
@@ -187,6 +263,45 @@ func (app *application) createWithdrawal(w http.ResponseWriter, r *http.Request)
 	})
 
 	_ = app.writeJSON(w, http.StatusAccepted, envelope{"withdrawal": withdrawalResult}, nil)
+}
+
+func (app *application) listWithdrawals(w http.ResponseWriter, r *http.Request) {
+	tenantID := app.tenantIDFromRequest(r)
+	if tenantID == "" {
+		app.errorResponse(w, r, http.StatusBadRequest, "X-Tenant-ID header is required")
+		return
+	}
+
+	qs := r.URL.Query()
+	v := validator.New()
+	filters := data.Filters{
+		Page:         app.readInt(qs, "page", 1, v),
+		PageSize:     app.readInt(qs, "page_size", 20, v),
+		Sort:         app.readString(qs, "sort", "-created_at"),
+		SortSafelist: []string{"created_at", "-created_at"},
+	}
+	data.ValidateFilters(v, filters)
+
+	status := strings.ToLower(strings.TrimSpace(app.readString(qs, "status", "")))
+	if status != "" {
+		v.Check(validator.In(status, "requested", "policy_pending", "approved", "broadcasted", "confirmed", "rejected", "failed", "cancelled"), "status", "must be a valid withdrawal status")
+	}
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	withdrawals, metadata, err := app.walletService.ListWithdrawals(r.Context(), wallet.ListWithdrawalsInput{
+		TenantID: tenantID,
+		Status:   status,
+		Filters:  filters,
+	})
+	if err != nil {
+		app.serverErrorResponse(w, r)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, envelope{"withdrawals": withdrawals, "metadata": metadata}, nil)
 }
 
 func (app *application) getWithdrawal(w http.ResponseWriter, r *http.Request) {
@@ -199,6 +314,10 @@ func (app *application) getWithdrawal(w http.ResponseWriter, r *http.Request) {
 	withdrawalID := app.pathParam(r, "id")
 	if withdrawalID == "" {
 		app.notFoundErrorResponse(w, r)
+		return
+	}
+	if !isValidUUID(withdrawalID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "withdrawal id must be a valid UUID")
 		return
 	}
 
@@ -225,6 +344,10 @@ func (app *application) approveWithdrawal(w http.ResponseWriter, r *http.Request
 	withdrawalID := app.pathParam(r, "id")
 	if withdrawalID == "" {
 		app.notFoundErrorResponse(w, r)
+		return
+	}
+	if !isValidUUID(withdrawalID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "withdrawal id must be a valid UUID")
 		return
 	}
 
@@ -273,6 +396,10 @@ func (app *application) rejectWithdrawal(w http.ResponseWriter, r *http.Request)
 		app.notFoundErrorResponse(w, r)
 		return
 	}
+	if !isValidUUID(withdrawalID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "withdrawal id must be a valid UUID")
+		return
+	}
 
 	var input struct {
 		Reason string `json:"reason"`
@@ -315,70 +442,16 @@ func (app *application) pathParam(r *http.Request, key string) string {
 	return strings.TrimSpace(params.ByName(key))
 }
 
+func isValidUUID(value string) bool {
+	_, err := uuid.Parse(strings.TrimSpace(value))
+	return err == nil
+}
+
 func (app *application) ingestAlchemyDepositWebhook(w http.ResponseWriter, r *http.Request) {
-	tenantID := app.tenantIDFromRequest(r)
-	if tenantID == "" {
-		app.errorResponse(w, r, http.StatusBadRequest, "X-Tenant-ID header is required")
-		return
-	}
-
 	walletID := app.pathParam(r, "id")
-	if walletID == "" {
-		app.notFoundErrorResponse(w, r)
+	if !isValidUUID(walletID) {
+		app.errorResponse(w, r, http.StatusBadRequest, "wallet id must be a valid UUID")
 		return
 	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, 1_048_576)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
-	signature := strings.TrimSpace(r.Header.Get("X-Alchemy-Signature"))
-	if app.alchemy != nil && !app.alchemy.VerifyWebhookSignature(body, signature) {
-		app.errorResponse(w, r, http.StatusUnauthorized, "invalid webhook signature")
-		return
-	}
-
-	if app.alchemy == nil {
-		app.serverErrorResponse(w, r)
-		return
-	}
-
-	parsed, err := app.alchemy.ParseWebhookDeposits(body)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
-	recorded := make([]data.WalletDeposit, 0, len(parsed))
-	for _, dep := range parsed {
-		deposit, err := app.walletService.RecordDeposit(r.Context(), wallet.RecordDepositInput{
-			TenantID:      tenantID,
-			WalletID:      walletID,
-			TxHash:        dep.TxHash,
-			AmountMinor:   dep.AmountMinor,
-			Confirmations: dep.Confirmations,
-			Status:        dep.Status,
-		})
-		if err != nil {
-			if errors.Is(err, data.ErrRecordNotFound) {
-				app.notFoundErrorResponse(w, r)
-				return
-			}
-			app.badRequestResponse(w, r, err)
-			return
-		}
-		recorded = append(recorded, deposit)
-	}
-
-	app.logAuditEvent(r, "wallet.deposit.webhook", "accepted", map[string]interface{}{
-		"tenant_id":       tenantID,
-		"wallet_id":       walletID,
-		"deposit_count":   len(recorded),
-		"primary_tx_hash": recorded[0].TxHash,
-	})
-
-	_ = app.writeJSON(w, http.StatusAccepted, envelope{"deposits": recorded}, nil)
+	app.processProviderWebhook(w, r, "alchemy", walletID)
 }

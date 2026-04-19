@@ -1,0 +1,8 @@
+./address.go
+./addressvalidation.go
+./bip276.go
+./errors.go
+./inscriptions.go
+./opcodes.go
+./script.go
+./script_chunk.go

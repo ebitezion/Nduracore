@@ -164,3 +164,11 @@ Deliverables:
 
 3. Policy misconfiguration
 - Mitigation: safe defaults (`deny`), policy simulation endpoint, and change audit logs.
+
+## Post-Phase Hardening Implemented (April 19, 2026)
+The following hardening slice is now implemented to move from MVP behavior toward migration-ready operations:
+1. Provider-agnostic webhook normalization endpoint (`POST /v1/webhooks/:provider`) with raw + normalized event persistence and DLQ enqueue on normalization failures.
+2. Canonical withdrawal state transitions with persisted state history (`withdrawal_state_history`).
+3. Vault external ID alias mapping (`vault_aliases`) for migration from provider-native vault IDs.
+4. Fee policy + fee charge primitives (`fee_policies`, `fee_charges`) and fee preview in withdrawal simulation.
+5. Reconciliation and replay operations (`/v1/ops/reconcile/withdrawals/run`, `/v1/ops/events/dlq/:id/replay`).

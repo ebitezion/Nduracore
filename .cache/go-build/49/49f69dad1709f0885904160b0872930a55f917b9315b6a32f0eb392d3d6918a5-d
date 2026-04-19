@@ -1,0 +1,7 @@
+./alphabet.go
+./base58.go
+./base58check.go
+./codec.go
+./errors.go
+./sha256.go
+./x_codec.go

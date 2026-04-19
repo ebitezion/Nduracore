@@ -1,0 +1,4 @@
+./derive.go
+./doc.go
+./extendedkey.go
+./hd_key.go

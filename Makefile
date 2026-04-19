@@ -17,6 +17,9 @@ build:
 build-cli:
 	go build -o bin/veincli ./cmd/veincli
 
+alchemy-smoke:
+	go run ./cmd/alchemysmoke
+
 test:
 	go test ./...
 

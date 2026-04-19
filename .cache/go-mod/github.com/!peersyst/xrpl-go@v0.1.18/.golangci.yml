@@ -1,0 +1,65 @@
+version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - exhaustive
+    - exptostd
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - modernize
+    - nilerr
+    - revive
+    - staticcheck
+    - testifylint
+    - unparam
+    - unused
+  exclusions:
+    rules:
+      - linters:
+          - revive
+        text: "var-naming: avoid meaningless package names"
+      - path: examples/
+        linters:
+          - revive
+        text: "package-comments"
+      # Only testifylint and modernize run on test files.
+      # All other linters are excluded from tests to reduce noise.
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - errcheck
+          - errorlint
+          - exhaustive
+          - exptostd
+          - gocritic
+          - gosec
+          - govet
+          - ineffassign
+          - misspell
+          - nilerr
+          - revive
+          - staticcheck
+          - unparam
+          - unused
+
+formatters:
+  enable:
+    - gofumpt
+
+run:
+  tests: true
+  timeout: 1m
+
+output:
+  formats:
+    text:
+      path: stdout
+      color: true
+      print-linter-name: true
+      print-issued-lines: true

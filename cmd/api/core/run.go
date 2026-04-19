@@ -153,10 +153,36 @@ func newApplication(cfg config, logger *log.Logger, models data.Models) (*applic
 	alchemyProvider := alchemy.NewProvider(alchemy.Config{
 		Network:               cfg.alchemy.network,
 		APIKey:                cfg.alchemy.apiKey,
+		APIKeys:               cfg.alchemy.apiKeys,
 		RPCURL:                cfg.alchemy.rpcURL,
+		RPCURLs:               cfg.alchemy.rpcURLs,
+		PrivateKey:            cfg.alchemy.privateKey,
+		PrivateKeys:           cfg.alchemy.privateKeys,
+		VaultPrivateKeys:      effectiveAlchemyVaultPrivateKeys(cfg),
+		ERC20Contracts:        cfg.alchemy.erc20Contracts,
 		ConfirmationsRequired: cfg.alchemy.confirmationsRequired,
 		WebhookSigningSecret:  cfg.alchemy.webhookSigningSecret,
 		EnableLiveDeposits:    cfg.alchemy.enableLiveDeposits,
+		EnableLiveBroadcasts:  cfg.alchemy.enableLiveBroadcasts,
+		AssetLookup: func(ctx context.Context, network, asset string) (alchemy.AssetDefinition, bool, error) {
+			def, err := models.Assets.GetActiveAsset(ctx, network, asset)
+			if err != nil {
+				if errors.Is(err, data.ErrRecordNotFound) {
+					return alchemy.AssetDefinition{}, false, nil
+				}
+				return alchemy.AssetDefinition{}, false, err
+			}
+
+			return alchemy.AssetDefinition{
+				Network:         def.Network,
+				AssetCode:       def.AssetCode,
+				ChainFamily:     def.ChainFamily,
+				AssetType:       def.AssetType,
+				ContractAddress: def.ContractAddress,
+				Decimals:        def.Decimals,
+				IsActive:        def.IsActive,
+			}, true, nil
+		},
 	})
 
 	app := &application{

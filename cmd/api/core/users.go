@@ -256,6 +256,7 @@ func (app *application) approveUser(w http.ResponseWriter, r *http.Request) {
 		Role     string `json:"role"`
 	}
 	if err := app.readJSON(w, r, &input); err != nil {
+		app.logAuditEvent(r, "user.approve", "failed", map[string]interface{}{"reason": "invalid_payload", "user_id": userID})
 		app.badRequestResponse(w, r, err)
 		return
 	}
@@ -267,24 +268,33 @@ func (app *application) approveUser(w http.ResponseWriter, r *http.Request) {
 	v.Check(strings.TrimSpace(input.TenantID) != "", "tenant_id", "must be provided")
 	v.Check(validator.In(strings.TrimSpace(input.Role), "user", "admin", "manager", "super_admin"), "role", "must be valid")
 	if !v.Valid() {
+		app.logAuditEvent(r, "user.approve", "failed", map[string]interface{}{"reason": "validation_error", "user_id": userID})
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	updatedUser, err := app.model.Users.UpdateRoleAndStatus(userID, strings.TrimSpace(input.Role), "active")
+	updatedUser, err := app.model.Users.ApproveWithTenantAccess(userID, strings.TrimSpace(input.TenantID), strings.TrimSpace(input.Role))
 	if err != nil {
-		if errors.Is(err, data.ErrRecordNotFound) {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.logAuditEvent(r, "user.approve", "failed", map[string]interface{}{"reason": "user_not_found", "user_id": userID})
 			app.notFoundErrorResponse(w, r)
 			return
+		case errors.Is(err, data.ErrInvalidInput):
+			app.logAuditEvent(r, "user.approve", "failed", map[string]interface{}{"reason": "invalid_input", "user_id": userID})
+			app.errorResponse(w, r, http.StatusBadRequest, "invalid user or tenant input")
+			return
+		case errors.Is(err, data.ErrDependencyUnavailable):
+			app.logAuditEvent(r, "user.approve", "failed", map[string]interface{}{"reason": "dependency_unavailable", "user_id": userID})
+			app.errorResponse(w, r, http.StatusServiceUnavailable, "approval dependency unavailable")
+			return
+		default:
+			app.logAuditEvent(r, "user.approve", "failed", map[string]interface{}{"reason": "internal_error", "user_id": userID})
+			app.serverErrorResponse(w, r)
+			return
 		}
-		app.serverErrorResponse(w, r)
-		return
 	}
-
-	if err := app.model.Users.UpsertTenantAccess(updatedUser.ID, strings.TrimSpace(input.TenantID), updatedUser.Role, "active"); err != nil {
-		app.serverErrorResponse(w, r)
-		return
-	}
+	updatedUser.TenantID = strings.TrimSpace(input.TenantID)
 
 	app.logAuditEvent(r, "user.approve", "success", map[string]interface{}{
 		"user_id":     updatedUser.ID,

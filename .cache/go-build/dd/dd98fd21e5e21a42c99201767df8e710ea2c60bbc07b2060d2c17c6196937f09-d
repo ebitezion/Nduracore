@@ -1,0 +1,7 @@
+./client.go
+./config.go
+./errors.go
+./helpers.go
+./queries.go
+./request.go
+./response.go

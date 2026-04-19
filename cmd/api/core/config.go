@@ -1,12 +1,14 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -52,10 +54,17 @@ type config struct {
 	alchemy struct {
 		network               string
 		apiKey                string
+		apiKeys               map[string]string
 		rpcURL                string
+		rpcURLs               map[string]string
+		privateKey            string
+		privateKeys           map[string]string
+		vaultPrivateKeys      map[string]string
+		erc20Contracts        map[string]string
 		confirmationsRequired int
 		webhookSigningSecret  string
 		enableLiveDeposits    bool
+		enableLiveBroadcasts  bool
 	}
 }
 
@@ -112,13 +121,55 @@ func loadConfig() (config, error) {
 	if err != nil {
 		return cfg, err
 	}
+	apiKeysJSON, err := getSecretEnv("ALCHEMY_API_KEYS_JSON", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.alchemy.apiKeys, err = parseStringMapJSON(apiKeysJSON)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid ALCHEMY_API_KEYS_JSON: %w", err)
+	}
 	cfg.alchemy.rpcURL = getEnv("ALCHEMY_RPC_URL", "")
+	rpcURLsJSON, err := getSecretEnv("ALCHEMY_RPC_URLS_JSON", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.alchemy.rpcURLs, err = parseStringMapJSON(rpcURLsJSON)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid ALCHEMY_RPC_URLS_JSON: %w", err)
+	}
+	cfg.alchemy.privateKey, err = getSecretEnv("ALCHEMY_PRIVATE_KEY", "")
+	if err != nil {
+		return cfg, err
+	}
+	privateKeysJSON, err := getSecretEnv("ALCHEMY_PRIVATE_KEYS_JSON", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.alchemy.privateKeys, err = parseStringMapJSON(privateKeysJSON)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid ALCHEMY_PRIVATE_KEYS_JSON: %w", err)
+	}
+	vaultPrivateKeysJSON, err := getSecretEnv("ALCHEMY_VAULT_PRIVATE_KEYS_JSON", "")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.alchemy.vaultPrivateKeys, err = parseStringMapJSON(vaultPrivateKeysJSON)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid ALCHEMY_VAULT_PRIVATE_KEYS_JSON: %w", err)
+	}
+	erc20ContractsJSON := getEnv("ALCHEMY_ERC20_CONTRACTS_JSON", "")
+	cfg.alchemy.erc20Contracts, err = parseStringMapJSON(erc20ContractsJSON)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid ALCHEMY_ERC20_CONTRACTS_JSON: %w", err)
+	}
 	cfg.alchemy.confirmationsRequired = getEnvInt("ALCHEMY_CONFIRMATIONS_REQUIRED", 12)
 	cfg.alchemy.webhookSigningSecret, err = getSecretEnv("ALCHEMY_WEBHOOK_SIGNING_SECRET", "")
 	if err != nil {
 		return cfg, err
 	}
 	cfg.alchemy.enableLiveDeposits = getEnvBool("ALCHEMY_ENABLE_LIVE_DEPOSITS", false)
+	cfg.alchemy.enableLiveBroadcasts = getEnvBool("ALCHEMY_ENABLE_LIVE_BROADCASTS", false)
 
 	if err := validateConfig(cfg); err != nil {
 		return cfg, err
@@ -189,12 +240,195 @@ func validateConfig(cfg config) error {
 	if cfg.alchemy.confirmationsRequired < 1 {
 		errs = append(errs, "ALCHEMY_CONFIRMATIONS_REQUIRED must be at least 1")
 	}
+	if err := validateAlchemyBroadcastConfig(cfg); err != nil {
+		errs = append(errs, err.Error())
+	}
 
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
 	}
 
 	return nil
+}
+
+func validateAlchemyBroadcastConfig(cfg config) error {
+	if !cfg.alchemy.enableLiveBroadcasts {
+		return nil
+	}
+
+	rpcURLs := effectiveAlchemyRPCURLs(cfg)
+	if len(rpcURLs) == 0 {
+		return fmt.Errorf("ALCHEMY_ENABLE_LIVE_BROADCASTS requires at least one configured RPC endpoint via ALCHEMY_RPC_URL, ALCHEMY_RPC_URLS_JSON, ALCHEMY_API_KEY, or ALCHEMY_API_KEYS_JSON")
+	}
+
+	privateKeys := effectiveAlchemyPrivateKeys(cfg)
+	vaultPrivateKeys := effectiveAlchemyVaultPrivateKeys(cfg)
+	missingSigner := make([]string, 0)
+	for network := range rpcURLs {
+		if !hasAlchemySignerForNetwork(network, privateKeys, vaultPrivateKeys) {
+			missingSigner = append(missingSigner, network)
+		}
+	}
+	if len(missingSigner) > 0 {
+		sort.Strings(missingSigner)
+		return fmt.Errorf("missing private key for live broadcast network(s): %s (configure ALCHEMY_VAULT_PRIVATE_KEYS_JSON, ALCHEMY_PRIVATE_KEYS_JSON, or ALCHEMY_PRIVATE_KEY for default network)", strings.Join(missingSigner, ", "))
+	}
+
+	invalidVaultSigner := make([]string, 0)
+	for key, value := range cfg.alchemy.vaultPrivateKeys {
+		parts := strings.Split(strings.TrimSpace(strings.ToLower(key)), ":")
+		if len(parts) != 2 {
+			invalidVaultSigner = append(invalidVaultSigner, fmt.Sprintf("%s (expected vault_id:network)", key))
+			continue
+		}
+		vaultID := strings.TrimSpace(parts[0])
+		network := strings.TrimSpace(parts[1])
+		privateKey := strings.TrimSpace(value)
+		if vaultID == "" || network == "" || privateKey == "" {
+			invalidVaultSigner = append(invalidVaultSigner, fmt.Sprintf("%s (expected non-empty vault_id:network => private_key)", key))
+		}
+	}
+	if len(invalidVaultSigner) > 0 {
+		sort.Strings(invalidVaultSigner)
+		return fmt.Errorf("invalid ALCHEMY_VAULT_PRIVATE_KEYS_JSON entries: %s", strings.Join(invalidVaultSigner, ", "))
+	}
+
+	invalidERC20 := make([]string, 0)
+	for key, addr := range cfg.alchemy.erc20Contracts {
+		parts := strings.Split(strings.TrimSpace(strings.ToLower(key)), ":")
+		if len(parts) != 2 {
+			invalidERC20 = append(invalidERC20, fmt.Sprintf("%s (expected network:ASSET)", key))
+			continue
+		}
+		network := strings.TrimSpace(parts[0])
+		asset := strings.TrimSpace(parts[1])
+		if network == "" || asset == "" {
+			invalidERC20 = append(invalidERC20, fmt.Sprintf("%s (expected network:ASSET)", key))
+			continue
+		}
+		if !isHexAddress(strings.TrimSpace(addr)) {
+			invalidERC20 = append(invalidERC20, fmt.Sprintf("%s (invalid contract address)", key))
+			continue
+		}
+	}
+	if len(invalidERC20) > 0 {
+		sort.Strings(invalidERC20)
+		return fmt.Errorf("invalid ALCHEMY_ERC20_CONTRACTS_JSON entries: %s", strings.Join(invalidERC20, ", "))
+	}
+
+	return nil
+}
+
+func effectiveAlchemyRPCURLs(cfg config) map[string]string {
+	network := strings.ToLower(strings.TrimSpace(cfg.alchemy.network))
+	if network == "" {
+		network = "eth-sepolia"
+	}
+
+	rpcURLs := make(map[string]string)
+	for n, url := range cfg.alchemy.rpcURLs {
+		key := strings.ToLower(strings.TrimSpace(n))
+		value := strings.TrimSpace(url)
+		if key == "" || value == "" {
+			continue
+		}
+		rpcURLs[key] = value
+	}
+
+	for n, apiKey := range cfg.alchemy.apiKeys {
+		key := strings.ToLower(strings.TrimSpace(n))
+		value := strings.TrimSpace(apiKey)
+		if key == "" || value == "" {
+			continue
+		}
+		if _, exists := rpcURLs[key]; !exists {
+			rpcURLs[key] = fmt.Sprintf("https://%s.g.alchemy.com/v2/%s", key, value)
+		}
+	}
+
+	rpcURL := strings.TrimSpace(cfg.alchemy.rpcURL)
+	if rpcURL != "" {
+		rpcURLs[network] = rpcURL
+	} else if _, exists := rpcURLs[network]; !exists && strings.TrimSpace(cfg.alchemy.apiKey) != "" {
+		rpcURLs[network] = fmt.Sprintf("https://%s.g.alchemy.com/v2/%s", network, strings.TrimSpace(cfg.alchemy.apiKey))
+	}
+
+	return rpcURLs
+}
+
+func effectiveAlchemyPrivateKeys(cfg config) map[string]string {
+	network := strings.ToLower(strings.TrimSpace(cfg.alchemy.network))
+	if network == "" {
+		network = "eth-sepolia"
+	}
+
+	privateKeys := make(map[string]string)
+	for n, privateKey := range cfg.alchemy.privateKeys {
+		key := strings.ToLower(strings.TrimSpace(n))
+		value := strings.TrimSpace(strings.TrimPrefix(privateKey, "0x"))
+		if key == "" || value == "" {
+			continue
+		}
+		privateKeys[key] = value
+	}
+
+	singlePrivateKey := strings.TrimSpace(strings.TrimPrefix(cfg.alchemy.privateKey, "0x"))
+	if singlePrivateKey != "" {
+		privateKeys[network] = singlePrivateKey
+	}
+
+	return privateKeys
+}
+
+func effectiveAlchemyVaultPrivateKeys(cfg config) map[string]string {
+	result := make(map[string]string)
+	for key, privateKey := range cfg.alchemy.vaultPrivateKeys {
+		parts := strings.Split(strings.TrimSpace(strings.ToLower(key)), ":")
+		if len(parts) != 2 {
+			continue
+		}
+		vaultID := strings.TrimSpace(parts[0])
+		network := strings.TrimSpace(parts[1])
+		value := strings.TrimSpace(strings.TrimPrefix(privateKey, "0x"))
+		if vaultID == "" || network == "" || value == "" {
+			continue
+		}
+		result[vaultID+":"+network] = value
+	}
+	return result
+}
+
+func hasAlchemySignerForNetwork(network string, privateKeys, vaultPrivateKeys map[string]string) bool {
+	networkKey := strings.ToLower(strings.TrimSpace(network))
+	if networkKey == "" {
+		return false
+	}
+	if strings.TrimSpace(privateKeys[networkKey]) != "" {
+		return true
+	}
+	suffix := ":" + networkKey
+	for key, privateKey := range vaultPrivateKeys {
+		if strings.HasSuffix(strings.ToLower(strings.TrimSpace(key)), suffix) && strings.TrimSpace(privateKey) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func isHexAddress(value string) bool {
+	if len(value) != 42 || !strings.HasPrefix(strings.ToLower(value), "0x") {
+		return false
+	}
+	for _, r := range value[2:] {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'f':
+		case r >= 'A' && r <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func getEnv(key, fallback string) string {
@@ -273,6 +507,30 @@ func parseCSV(raw string) []string {
 		}
 	}
 	return parsed
+}
+
+func parseStringMapJSON(raw string) (map[string]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return map[string]string{}, nil
+	}
+
+	parsed := make(map[string]string)
+	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(parsed))
+	for key, value := range parsed {
+		k := strings.TrimSpace(strings.ToLower(key))
+		v := strings.TrimSpace(value)
+		if k == "" || v == "" {
+			continue
+		}
+		result[k] = v
+	}
+
+	return result, nil
 }
 
 func getSecretEnv(key, fallback string) (string, error) {

@@ -1,0 +1,5 @@
+./authorize_channel.go
+./batch.go
+./counterparty_signer.go
+./errors.go
+./wallet.go
