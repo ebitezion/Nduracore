@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -180,28 +179,24 @@ func (m WalletModel) ListWallets(ctx context.Context, tenantID, vaultID, asset, 
 
 	stmt := `SELECT count(*) OVER(), id, tenant_id, COALESCE(vault_id::text, ''), asset, network, address, provider, status, created_at, updated_at
 		FROM wallets
-		WHERE tenant_id = $1`
-	args := []interface{}{tenantID}
-	argPosition := 2
-
-	if strings.TrimSpace(vaultID) != "" {
-		stmt += fmt.Sprintf(" AND vault_id = $%d::uuid", argPosition)
-		args = append(args, vaultID)
-		argPosition++
+		WHERE tenant_id = $1
+		  AND ($2::uuid IS NULL OR vault_id = $2::uuid)
+		  AND ($3 = '' OR asset = $3)
+		  AND ($4 = '' OR network = $4)
+		ORDER BY created_at DESC
+		LIMIT $5 OFFSET $6`
+	var vaultArg interface{}
+	if trimmed := strings.TrimSpace(vaultID); trimmed != "" {
+		vaultArg = trimmed
 	}
-	if strings.TrimSpace(asset) != "" {
-		stmt += fmt.Sprintf(" AND asset = $%d", argPosition)
-		args = append(args, asset)
-		argPosition++
+	args := []interface{}{
+		tenantID,
+		vaultArg,
+		strings.TrimSpace(asset),
+		strings.TrimSpace(network),
+		filters.PageSize,
+		(filters.Page - 1) * filters.PageSize,
 	}
-	if strings.TrimSpace(network) != "" {
-		stmt += fmt.Sprintf(" AND network = $%d", argPosition)
-		args = append(args, network)
-		argPosition++
-	}
-
-	stmt += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
-	args = append(args, filters.PageSize, (filters.Page-1)*filters.PageSize)
 
 	rows, err := m.DB.QueryContext(ctx, stmt, args...)
 	if err != nil {
@@ -421,18 +416,16 @@ func (m WalletModel) ListWithdrawals(ctx context.Context, tenantID, status strin
 
 	stmt := `SELECT count(*) OVER(), id, tenant_id, wallet_id, COALESCE(vault_id::text, ''), destination, asset, network, amount_minor, status, required_approvals, approved_count, policy_reason, risk_level, provider_tx_hash, requested_by, created_at, updated_at
 		FROM withdrawals
-		WHERE tenant_id = $1`
-	args := []interface{}{tenantID}
-	argPosition := 2
-
-	if strings.TrimSpace(status) != "" {
-		stmt += fmt.Sprintf(" AND status = $%d", argPosition)
-		args = append(args, status)
-		argPosition++
+		WHERE tenant_id = $1
+		  AND ($2 = '' OR status = $2)
+		ORDER BY created_at DESC
+		LIMIT $3 OFFSET $4`
+	args := []interface{}{
+		tenantID,
+		strings.TrimSpace(status),
+		filters.PageSize,
+		(filters.Page - 1) * filters.PageSize,
 	}
-
-	stmt += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
-	args = append(args, filters.PageSize, (filters.Page-1)*filters.PageSize)
 
 	rows, err := m.DB.QueryContext(ctx, stmt, args...)
 	if err != nil {

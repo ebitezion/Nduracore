@@ -85,11 +85,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(*outPath), 0o750); err != nil {
 		fmt.Fprintf(os.Stderr, "create output dir failed: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(*outPath, payload, 0o644); err != nil {
+	if err := os.WriteFile(*outPath, payload, 0o600); err != nil {
 		fmt.Fprintf(os.Stderr, "write catalog failed: %v\n", err)
 		os.Exit(1)
 	}

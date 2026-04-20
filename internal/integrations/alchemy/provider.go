@@ -834,9 +834,6 @@ func parseAmountMinor(value any, rawHexValue string) int64 {
 	if strings.TrimSpace(rawHexValue) != "" {
 		raw := parseHexInt64(rawHexValue)
 		if raw > 0 {
-			if raw > math.MaxInt64 {
-				return math.MaxInt64
-			}
 			return raw
 		}
 	}

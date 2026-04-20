@@ -235,6 +235,7 @@ func getSecretEnv(key, fallback string) (string, error) {
 
 	filePath := strings.TrimSpace(os.Getenv(key + "_FILE"))
 	if filePath != "" {
+		// #nosec G304,G703 -- path is supplied by deployment-controlled environment configuration.
 		value, err := os.ReadFile(filePath)
 		if err != nil {
 			return "", fmt.Errorf("%s_FILE: %w", key, err)
@@ -272,6 +273,7 @@ func resolveSecretReference(ref string) (string, error) {
 		if target == "" {
 			return "", fmt.Errorf("empty file reference")
 		}
+		// #nosec G304,G703 -- file reference is trusted operational input from env/config.
 		content, err := os.ReadFile(target)
 		if err != nil {
 			return "", err

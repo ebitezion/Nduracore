@@ -320,9 +320,7 @@ func decimalToMinorString(value string, decimals int) (string, error) {
 	if whole == "" {
 		whole = "0"
 	}
-	if strings.HasPrefix(whole, "+") {
-		whole = strings.TrimPrefix(whole, "+")
-	}
+	whole = strings.TrimPrefix(whole, "+")
 	if strings.HasPrefix(whole, "-") {
 		return "", fmt.Errorf("negative values are unsupported")
 	}

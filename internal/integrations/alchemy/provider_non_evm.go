@@ -4,7 +4,11 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -17,7 +21,6 @@ import (
 	"github.com/gagliardetto/solana-go"
 	solanasystem "github.com/gagliardetto/solana-go/programs/system"
 	solanarpc "github.com/gagliardetto/solana-go/rpc"
-	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/txnbuild"
@@ -181,14 +184,13 @@ func (p *Provider) broadcastTransferStellar(ctx context.Context, req integration
 	if err != nil {
 		return integrations.BroadcastTransferResult{}, err
 	}
-	client := horizonclient.Client{
-		HorizonURL: rpcURL,
-		HTTP:       p.httpClient,
-	}
-
-	sourceAccount, err := client.AccountDetail(horizonclient.AccountRequest{AccountID: kp.Address()})
+	sequence, err := p.fetchStellarSequence(ctx, rpcURL, kp.Address())
 	if err != nil {
 		return integrations.BroadcastTransferResult{}, err
+	}
+	sourceAccount := txnbuild.SimpleAccount{
+		AccountID: kp.Address(),
+		Sequence:  sequence,
 	}
 
 	amountMajor := formatFixedAmount(req.AmountMinor, 7)
@@ -218,12 +220,89 @@ func (p *Provider) broadcastTransferStellar(ctx context.Context, req integration
 		return integrations.BroadcastTransferResult{}, err
 	}
 
-	resp, err := client.SubmitTransaction(signedTx)
+	envelopeXDR, err := signedTx.Base64()
+	if err != nil {
+		return integrations.BroadcastTransferResult{}, err
+	}
+	txHash, err := p.submitStellarTransaction(ctx, rpcURL, envelopeXDR)
 	if err != nil {
 		return integrations.BroadcastTransferResult{}, err
 	}
 
-	return integrations.BroadcastTransferResult{TxHash: resp.Hash}, nil
+	return integrations.BroadcastTransferResult{TxHash: txHash}, nil
+}
+
+func (p *Provider) fetchStellarSequence(ctx context.Context, horizonURL, accountID string) (int64, error) {
+	accountURL := strings.TrimRight(strings.TrimSpace(horizonURL), "/") + "/accounts/" + url.PathEscape(strings.TrimSpace(accountID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, accountURL, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	client := p.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return 0, fmt.Errorf("stellar account lookup failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Sequence string `json:"sequence"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return 0, err
+	}
+	sequence, err := strconv.ParseInt(strings.TrimSpace(payload.Sequence), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid stellar account sequence")
+	}
+	return sequence, nil
+}
+
+func (p *Provider) submitStellarTransaction(ctx context.Context, horizonURL, envelopeXDR string) (string, error) {
+	txURL := strings.TrimRight(strings.TrimSpace(horizonURL), "/") + "/transactions"
+	form := url.Values{}
+	form.Set("tx", envelopeXDR)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, txURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := p.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return "", fmt.Errorf("stellar submit failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Hash string `json:"hash"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(payload.Hash) == "" {
+		return "", fmt.Errorf("stellar submit response missing hash")
+	}
+	return strings.TrimSpace(payload.Hash), nil
 }
 
 func (p *Provider) xrplAddressForNetwork(vaultID, network string) (string, error) {

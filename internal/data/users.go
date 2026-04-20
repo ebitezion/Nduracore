@@ -399,7 +399,9 @@ func (u UserModel) ApproveWithTenantAccess(userID, tenantID, role string) (*User
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	updatedUser, err := updateRoleAndStatusQuery(ctx, tx, strings.TrimSpace(userID), strings.TrimSpace(role), "active")
 	if err != nil {
