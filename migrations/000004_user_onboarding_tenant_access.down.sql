@@ -1,4 +1,4 @@
 DROP TABLE IF EXISTS user_tenants;
 
-ALTER TABLE users
+ALTER TABLE IF EXISTS users
     ALTER COLUMN status SET DEFAULT 'active';
