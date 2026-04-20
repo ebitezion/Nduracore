@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,13 +31,13 @@ func TestE2EUsersListAndMiddleware(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := applySQLFile(db, filepath.Join("..", "..", "migrations", "000001_create_users.down.sql")); err != nil {
+	if err := applySQLFile(db, repoFilePath("migrations", "000001_create_users.down.sql")); err != nil {
 		t.Fatalf("apply down migration: %v", err)
 	}
-	if err := applySQLFile(db, filepath.Join("..", "..", "migrations", "000001_create_users.up.sql")); err != nil {
+	if err := applySQLFile(db, repoFilePath("migrations", "000001_create_users.up.sql")); err != nil {
 		t.Fatalf("apply up migration: %v", err)
 	}
-	if err := applySQLFile(db, filepath.Join("..", "..", "seeds", "000001_seed_users.sql")); err != nil {
+	if err := applySQLFile(db, repoFilePath("seeds", "000001_seed_users.sql")); err != nil {
 		t.Fatalf("apply seed: %v", err)
 	}
 
@@ -140,4 +141,29 @@ func applySQLFile(db *sql.DB, path string) error {
 	}
 	_, err = db.Exec(string(sqlBytes))
 	return err
+}
+
+func repoFilePath(elem ...string) string {
+	candidates := []string{
+		filepath.Join(append([]string{"."}, elem...)...),
+		filepath.Join(append([]string{".."}, elem...)...),
+		filepath.Join(append([]string{"..", ".."}, elem...)...),
+		filepath.Join(append([]string{"..", "..", ".."}, elem...)...),
+	}
+
+	if _, currentFile, _, ok := runtime.Caller(0); ok {
+		base := filepath.Dir(currentFile)
+		candidates = append(candidates,
+			filepath.Join(append([]string{base, "..", "..", ".."}, elem...)...),
+		)
+	}
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	// Keep failure explicit when no candidate path exists.
+	return filepath.Join(append([]string{"."}, elem...)...)
 }
