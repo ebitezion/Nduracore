@@ -38,13 +38,13 @@ type NetworkState struct {
 }
 
 type TxReceiptState struct {
-	TxHash       string `json:"tx_hash"`
-	Found        bool   `json:"found"`
-	Confirmed    bool   `json:"confirmed"`
-	Success      bool   `json:"success"`
-	BlockNumber  string `json:"block_number,omitempty"`
-	BlockHash    string `json:"block_hash,omitempty"`
-	Confirmations int64 `json:"confirmations"`
+	TxHash        string `json:"tx_hash"`
+	Found         bool   `json:"found"`
+	Confirmed     bool   `json:"confirmed"`
+	Success       bool   `json:"success"`
+	BlockNumber   string `json:"block_number,omitempty"`
+	BlockHash     string `json:"block_hash,omitempty"`
+	Confirmations int64  `json:"confirmations"`
 }
 
 func (p *Provider) EstimateTransferGas(ctx context.Context, network, asset, fromAddress, toAddress string, amountMinor int64) (GasEstimate, error) {

@@ -1,3 +1,4 @@
 .env
-.history
-.gocache
+.history/
+.cache/
+.gocache/

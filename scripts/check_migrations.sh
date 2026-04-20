@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bashgit 
 set -euo pipefail
 
 missing=0

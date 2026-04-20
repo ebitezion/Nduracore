@@ -1,6 +1,0 @@
-./handler.go
-./io.go
-./link.go
-./link_builder.go
-./page.go
-./paging_token.go

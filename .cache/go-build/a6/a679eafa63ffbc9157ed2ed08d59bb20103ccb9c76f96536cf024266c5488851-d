@@ -1,5 +1,0 @@
-./errors.go
-./submit.go
-./submit_multisigned.go
-./transaction_entry.go
-./tx_request.go

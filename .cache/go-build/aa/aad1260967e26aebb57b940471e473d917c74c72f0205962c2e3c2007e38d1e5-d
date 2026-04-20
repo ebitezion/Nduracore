@@ -1,5 +1,0 @@
-./ed25519.go
-./errors.go
-./secp256k1.go
-./sha512.go
-./types.go

@@ -1,7 +1,0 @@
-./channel_result.go
-./errors.go
-./nft.go
-./offer_result.go
-./queue_data.go
-./queue_transaction.go
-./trust_line.go
