@@ -30,6 +30,7 @@ func TestE2EUsersListAndMiddleware(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
+	var appLogs bytes.Buffer
 
 	if err := applySQLFile(db, repoFilePath("migrations", "000004_user_onboarding_tenant_access.down.sql")); err != nil {
 		t.Fatalf("apply tenant-access down migration: %v", err)
@@ -56,7 +57,7 @@ func TestE2EUsersListAndMiddleware(t *testing.T) {
 	cfg.security.rateLimitRPS = 100
 	cfg.security.rateLimitBurst = 100
 
-	app, err := newApplication(cfg, log.New(io.Discard, "", 0), data.NewModels(db))
+	app, err := newApplication(cfg, log.New(&appLogs, "", 0), data.NewModels(db))
 	if err != nil {
 		t.Fatalf("new application: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestE2EUsersListAndMiddleware(t *testing.T) {
 
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
-		t.Fatalf("expected 200, got %d body=%s", res.StatusCode, string(body))
+		t.Fatalf("expected 200, got %d body=%s logs=%s", res.StatusCode, string(body), appLogs.String())
 	}
 
 	body, _ := io.ReadAll(res.Body)
