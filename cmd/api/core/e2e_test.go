@@ -31,11 +31,17 @@ func TestE2EUsersListAndMiddleware(t *testing.T) {
 	}
 	defer db.Close()
 
+	if err := applySQLFile(db, repoFilePath("migrations", "000004_user_onboarding_tenant_access.down.sql")); err != nil {
+		t.Fatalf("apply tenant-access down migration: %v", err)
+	}
 	if err := applySQLFile(db, repoFilePath("migrations", "000001_create_users.down.sql")); err != nil {
 		t.Fatalf("apply down migration: %v", err)
 	}
 	if err := applySQLFile(db, repoFilePath("migrations", "000001_create_users.up.sql")); err != nil {
 		t.Fatalf("apply up migration: %v", err)
+	}
+	if err := applySQLFile(db, repoFilePath("migrations", "000004_user_onboarding_tenant_access.up.sql")); err != nil {
+		t.Fatalf("apply tenant-access up migration: %v", err)
 	}
 	if err := applySQLFile(db, repoFilePath("seeds", "000001_seed_users.sql")); err != nil {
 		t.Fatalf("apply seed: %v", err)
